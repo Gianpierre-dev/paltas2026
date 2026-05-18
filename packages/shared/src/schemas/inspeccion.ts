@@ -113,6 +113,8 @@ export const ListInspeccionesQuerySchema = z.object({
   fechaDesde: z.coerce.date().optional(),
   fechaHasta: z.coerce.date().optional(),
   resultado: z.enum(RESULTADO_FINAL_VALUES).optional(),
+  // Default false: la UI normal solo ve activas. Admin puede pedir true para auditoría.
+  incluirEliminadas: z.coerce.boolean().optional().default(false),
   page: z.coerce.number().int().positive().optional().default(1),
   pageSize: z.coerce.number().int().positive().max(100).optional().default(50),
 });

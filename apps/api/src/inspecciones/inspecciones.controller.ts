@@ -64,4 +64,11 @@ export class InspeccionesController {
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.remove(id);
   }
+
+  @Roles(Rol.ADMIN)
+  @Post(':id/restore')
+  @HttpCode(200)
+  restore(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.restore(id);
+  }
 }

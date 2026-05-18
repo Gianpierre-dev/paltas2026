@@ -30,6 +30,7 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.4.15",
+    "@nestjs/throttler": "^6.4.0",
     "@paltas2026/shared": "workspace:*",
     "@prisma/client": "^5.22.0",
     "bcrypt": "^5.1.1",

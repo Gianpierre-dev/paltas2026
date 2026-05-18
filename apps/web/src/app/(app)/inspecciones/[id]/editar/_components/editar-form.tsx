@@ -19,7 +19,6 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
 import type { CatalogosForForm } from '@/lib/catalogos';
-import { getClientSession } from '@/lib/session-client';
 
 // Shape esperado: valores de la inspección ya normalizados para el form.
 export interface InspeccionParaEditar {
@@ -121,11 +120,6 @@ export function EditarInspeccionForm({ catalogos, inspeccion }: Props) {
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
-    const session = getClientSession();
-    if (!session) {
-      setServerError('Sesión expirada. Volvé a iniciar sesión.');
-      return;
-    }
 
     const defectos = Object.entries(values.cantidadPorDefecto ?? {})
       .map(([tipoDefectoId, cantidad]) => ({
@@ -160,7 +154,6 @@ export function EditarInspeccionForm({ catalogos, inspeccion }: Props) {
       await api(`/inspecciones/${inspeccion.id}`, {
         method: 'PATCH',
         body: payload,
-        accessToken: session.accessToken,
       });
       router.push(`/inspecciones/${inspeccion.id}`);
       router.refresh();

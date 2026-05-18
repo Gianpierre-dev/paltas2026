@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Rol } from '@paltas2026/shared';
+import { Rol, type UsuarioPublico } from '@paltas2026/shared';
 import { api } from '@/lib/api';
 import { getServerSession, getServerToken } from '@/lib/session';
 
@@ -15,19 +15,24 @@ async function getStats(token: string) {
   }).catch(() => ({ pagination: { total: 0 } }));
 }
 
+async function getUsuario(token: string): Promise<UsuarioPublico | null> {
+  return api<UsuarioPublico>('/auth/me', { accessToken: token }).catch(() => null);
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession();
   const token = await getServerToken();
   if (!session || !token) return null;
 
-  const stats = await getStats(token);
+  const [stats, usuario] = await Promise.all([getStats(token), getUsuario(token)]);
   const esAdmin = session.usuario.rol === Rol.ADMIN;
+  const nombre = usuario?.nombre ?? '';
 
   return (
     <div className="px-4 py-6 space-y-6">
       <section>
         <h2 className="text-xl font-semibold text-zinc-900">
-          Hola, {session.usuario.nombre} 👋
+          Hola, {nombre} 👋
         </h2>
         <p className="text-sm text-zinc-600 mt-0.5">
           {esAdmin

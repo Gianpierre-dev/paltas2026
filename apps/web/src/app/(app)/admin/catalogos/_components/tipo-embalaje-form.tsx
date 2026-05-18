@@ -7,7 +7,6 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
-import { getClientSession } from '@/lib/session-client';
 
 const FormSchema = z.object({
   codigo: z.string().trim().min(1, 'Código requerido').max(20),
@@ -54,12 +53,6 @@ export function TipoEmbalajeForm({ initialValues }: Props) {
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
-    const session = getClientSession();
-    if (!session) {
-      setServerError('Sesión expirada.');
-      return;
-    }
-
     const payload = {
       codigo: values.codigo,
       descripcion: values.descripcion,
@@ -72,13 +65,11 @@ export function TipoEmbalajeForm({ initialValues }: Props) {
         await api(`/tipos-embalaje/${initialValues.id}`, {
           method: 'PATCH',
           body: payload,
-          accessToken: session.accessToken,
         });
       } else {
         await api('/tipos-embalaje', {
           method: 'POST',
           body: payload,
-          accessToken: session.accessToken,
         });
       }
       router.push('/admin/catalogos/tipos-embalaje');

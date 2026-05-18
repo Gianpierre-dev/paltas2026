@@ -8,7 +8,6 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
-import { getClientSession } from '@/lib/session-client';
 
 const FormSchema = z.object({
   nombre: z.string().trim().min(1, 'Nombre requerido').max(80),
@@ -48,24 +47,16 @@ export function TipoDefectoForm({ initialValues }: Props) {
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
-    const session = getClientSession();
-    if (!session) {
-      setServerError('Sesión expirada.');
-      return;
-    }
-
     try {
       if (isEdit) {
         await api(`/tipos-defecto/${initialValues.id}`, {
           method: 'PATCH',
           body: values,
-          accessToken: session.accessToken,
         });
       } else {
         await api('/tipos-defecto', {
           method: 'POST',
           body: values,
-          accessToken: session.accessToken,
         });
       }
       router.push('/admin/catalogos/tipos-defecto');

@@ -7,7 +7,6 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
-import { getClientSession } from '@/lib/session-client';
 
 // Schema local del form — sirve para los 4 catálogos simples (sólo nombre).
 // El backend valida con su propio schema; acá garantizamos UX inmediata.
@@ -39,24 +38,16 @@ export function CatalogoSimpleForm({ recurso, initialValues }: Props) {
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
-    const session = getClientSession();
-    if (!session) {
-      setServerError('Sesión expirada. Volvé a iniciar sesión.');
-      return;
-    }
-
     try {
       if (isEdit) {
         await api(`/${recurso}/${initialValues.id}`, {
           method: 'PATCH',
           body: { nombre: values.nombre },
-          accessToken: session.accessToken,
         });
       } else {
         await api(`/${recurso}`, {
           method: 'POST',
           body: { nombre: values.nombre },
-          accessToken: session.accessToken,
         });
       }
       router.push(`/admin/catalogos/${recurso}`);

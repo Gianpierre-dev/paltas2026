@@ -1,13 +1,10 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { LoginInputSchema, type LoginInput } from '@paltas2026/shared';
+import { LoginInputSchema, type LoginInput, type UsuarioPublico } from '@paltas2026/shared';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { ApiError, api } from '@/lib/api';
-import type { Session } from '@/lib/session-client';
-import { setClientSession } from '@/lib/session-client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,21 +24,33 @@ export default function LoginPage() {
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
     try {
-      const session = await api<Session>('/auth/login', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
-        body: values,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+        cache: 'no-store',
       });
-      setClientSession(session);
+      if (!res.ok) {
+        const body = await safeReadJson(res);
+        if (res.status === 401) {
+          setServerError('Email o contraseña incorrectos');
+        } else if (res.status === 429) {
+          setServerError('Demasiados intentos. Esperá un minuto.');
+        } else {
+          setServerError(typeof body?.message === 'string' ? body.message : 'No se pudo iniciar sesión');
+        }
+        return;
+      }
+      // El BFF setea las cookies httpOnly. Confirmamos sólo que el shape sea correcto.
+      const usuario = (await res.json()) as UsuarioPublico;
+      if (!usuario?.id) {
+        setServerError('Respuesta de login inválida');
+        return;
+      }
       router.push(nextPath);
       router.refresh();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setServerError('Email o contraseña incorrectos');
-      } else if (err instanceof ApiError) {
-        setServerError(err.message);
-      } else {
-        setServerError('No se pudo conectar con el servidor');
-      }
+    } catch {
+      setServerError('No se pudo conectar con el servidor');
     }
   });
 
@@ -108,4 +117,12 @@ export default function LoginPage() {
       </div>
     </main>
   );
+}
+
+async function safeReadJson(res: Response): Promise<{ message?: unknown } | null> {
+  try {
+    return (await res.json()) as { message?: unknown };
+  } catch {
+    return null;
+  }
 }

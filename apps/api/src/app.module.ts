@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
@@ -22,6 +23,10 @@ import { VariedadesModule } from './variedades/variedades.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    // Default global: 30 req/min por IP. Endpoints sensibles redefinen con @Throttle.
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 30 }],
+    }),
     PrismaModule,
     AuthModule,
     HealthModule,
@@ -38,6 +43,8 @@ import { VariedadesModule } from './variedades/variedades.module';
     InspeccionesStatsModule,
   ],
   providers: [
+    // Orden importante: Throttler primero (rebota antes de tocar auth/DB)
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

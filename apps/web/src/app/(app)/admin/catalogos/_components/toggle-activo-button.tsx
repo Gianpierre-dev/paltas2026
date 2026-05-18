@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ApiError, api } from '@/lib/api';
-import { getClientSession } from '@/lib/session-client';
 
 interface Props {
   recurso: string;
@@ -25,26 +24,18 @@ export function ToggleActivoButton({ recurso, id, activo }: Props) {
     const ok = window.confirm(`¿Querés ${verbo} este item?`);
     if (!ok) return;
 
-    const session = getClientSession();
-    if (!session) {
-      setError('Sesión expirada.');
-      return;
-    }
-
     setPending(true);
     try {
       if (activo) {
         // Desactivar usa DELETE (soft-delete en el backend).
         await api(`/${recurso}/${id}`, {
           method: 'DELETE',
-          accessToken: session.accessToken,
         });
       } else {
         // Re-activar via PATCH activo:true.
         await api(`/${recurso}/${id}`, {
           method: 'PATCH',
           body: { activo: true },
-          accessToken: session.accessToken,
         });
       }
       router.refresh();

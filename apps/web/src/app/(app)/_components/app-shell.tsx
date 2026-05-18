@@ -1,9 +1,8 @@
 'use client';
 
-import type { Session } from '@/lib/session-client';
-import { clearClientSession } from '@/lib/session-client';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
+import { useSession } from '@/lib/session-context';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: '🏠' },
@@ -11,21 +10,9 @@ const NAV_ITEMS = [
   { href: '/inspecciones/nueva', label: 'Cargar', icon: '➕' },
 ] as const;
 
-export function AppShell({
-  session,
-  children,
-}: {
-  session: Session;
-  children: React.ReactNode;
-}) {
+export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-
-  const handleLogout = () => {
-    clearClientSession();
-    router.push('/login');
-    router.refresh();
-  };
+  const { usuario, logout } = useSession();
 
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50">
@@ -36,12 +23,12 @@ export function AppShell({
             <div>
               <h1 className="font-semibold text-base leading-tight">Paltas 2026</h1>
               <p className="text-xs text-brand-50/80 leading-tight">
-                {session.usuario.nombre} · {session.usuario.rol}
+                {usuario.nombre} · {usuario.rol}
               </p>
             </div>
           </div>
           <button
-            onClick={handleLogout}
+            onClick={logout}
             className="text-xs px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 active:bg-white/30 transition"
           >
             Salir

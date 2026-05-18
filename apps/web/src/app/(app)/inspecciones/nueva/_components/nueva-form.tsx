@@ -15,7 +15,6 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
 import type { CatalogosForForm } from '@/lib/catalogos';
-import { getClientSession } from '@/lib/session-client';
 
 // Schema del FORM — incluye cantidadPorDefecto como objeto (transformamos en submit).
 // El schema oficial CreateInspeccionInputSchema espera defectos como array.
@@ -80,11 +79,6 @@ export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
-    const session = getClientSession();
-    if (!session) {
-      setServerError('Sesión expirada. Volvé a iniciar sesión.');
-      return;
-    }
 
     // Transformamos el objeto cantidadPorDefecto a array, descartando ceros/undefined.
     const defectos = Object.entries(values.cantidadPorDefecto ?? {})
@@ -118,7 +112,6 @@ export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm
       const created = await api<{ id: string }>('/inspecciones', {
         method: 'POST',
         body: payload,
-        accessToken: session.accessToken,
       });
       router.push(`/inspecciones/${created.id}`);
       router.refresh();

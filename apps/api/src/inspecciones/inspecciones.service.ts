@@ -150,6 +150,11 @@ export class InspeccionesService {
       },
     });
     if (!existing) throw new NotFoundException(`Inspeccion ${id} no encontrada`);
+    if (existing.deletedAt !== null) {
+      throw new BadRequestException(
+        `Inspeccion ${id} está eliminada. Restaurala antes de editar.`,
+      );
+    }
 
     // 2) Validar FK references que vengan en el body (UUIDs no-null)
     await this.validateUpdateReferences(input);
@@ -350,20 +355,49 @@ export class InspeccionesService {
     });
   }
 
+  /**
+   * Soft delete. La fila queda viva con deletedAt seteado.
+   * Trazabilidad agro: nunca borramos físicamente una inspección — el contenedor
+   * que originó esa muestra puede aparecer en una observación de cliente meses después.
+   */
   async remove(id: string) {
-    const exists = await this.prisma.inspeccion.findUnique({
+    const existing = await this.prisma.inspeccion.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
-    if (!exists) throw new NotFoundException(`Inspeccion ${id} no encontrada`);
-    // Los InspeccionDefecto se borran por onDelete: Cascade del schema Prisma.
-    await this.prisma.inspeccion.delete({ where: { id } });
+    if (!existing) throw new NotFoundException(`Inspeccion ${id} no encontrada`);
+    if (existing.deletedAt !== null) {
+      throw new BadRequestException(`Inspeccion ${id} ya estaba eliminada`);
+    }
+    await this.prisma.inspeccion.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
     return { id, deleted: true };
+  }
+
+  /**
+   * Restore: anula el soft delete. Solo ADMIN — el guard lo controla en el controller.
+   */
+  async restore(id: string) {
+    const existing = await this.prisma.inspeccion.findUnique({
+      where: { id },
+      select: { id: true, deletedAt: true },
+    });
+    if (!existing) throw new NotFoundException(`Inspeccion ${id} no encontrada`);
+    if (existing.deletedAt === null) {
+      throw new BadRequestException(`Inspeccion ${id} no está eliminada`);
+    }
+    await this.prisma.inspeccion.update({
+      where: { id },
+      data: { deletedAt: null },
+    });
+    return { id, restored: true };
   }
 
   async getById(id: string) {
     const insp = await this.prisma.inspeccion.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       include: {
         defectos: { include: { tipoDefecto: true } },
         fundo: true,
@@ -380,6 +414,8 @@ export class InspeccionesService {
 
   async list(query: ListInspeccionesQuery) {
     const where: Prisma.InspeccionWhereInput = {
+      // Por default solo activas. Admin con incluirEliminadas=true ve el histórico completo.
+      ...(query.incluirEliminadas ? {} : { deletedAt: null }),
       ...(query.tipo && { tipo: query.tipo }),
       ...(query.fundoId && { fundoId: query.fundoId }),
       ...(query.variedadId && { variedadId: query.variedadId }),

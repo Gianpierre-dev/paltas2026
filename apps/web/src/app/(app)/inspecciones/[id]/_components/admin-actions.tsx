@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ApiError, api } from '@/lib/api';
-import { getClientSession } from '@/lib/session-client';
 
 interface Props {
   inspeccionId: string;
@@ -23,17 +22,10 @@ export function AdminActions({ inspeccionId }: Props) {
     );
     if (!ok) return;
 
-    const session = getClientSession();
-    if (!session) {
-      setError('Sesión expirada. Volvé a iniciar sesión.');
-      return;
-    }
-
     setDeleting(true);
     try {
       await api(`/inspecciones/${inspeccionId}`, {
         method: 'DELETE',
-        accessToken: session.accessToken,
       });
       router.push('/inspecciones');
       router.refresh();
