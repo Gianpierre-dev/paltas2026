@@ -1,0 +1,53 @@
+# Dependencias
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+.next/
+build/
+out/
+
+# Variables de entorno
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Editor
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# Claude Code — solo el local (overrides personales)
+.claude/settings.local.json
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Prisma
+apps/api/prisma/migrations/dev.db*
+
+# Tests
+coverage/
+.nyc_output/
+
+# Cache
+.turbo/
+.cache/
+*.tsbuildinfo
+
+# Datos sensibles
+requesitos/
+*.xlsx
+!docs/**/*.xlsx

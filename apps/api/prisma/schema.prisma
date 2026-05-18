@@ -1,0 +1,298 @@
+// Modelo de datos — Paltas2026
+// Sistema de Control de Calidad de Palta — Campaña 2026
+//
+// Convenciones:
+//  - Nombres de modelo en PascalCase singular (Inspeccion, no Inspecciones)
+//  - Nombres de tabla en snake_case plural via @@map
+//  - Todos los IDs son uuid v4
+//  - Timestamps: createdAt, updatedAt en TODAS las tablas para auditoria
+//  - Soft delete: campo `activo` boolean en catálogos
+//  - Inspeccion NO tiene soft delete: queda como histórico
+//
+// Cambios v2 (post PDF "APP PALTA 2026"):
+//  - EvaluacionFisica.RECHAZO -> MALO (alineado con UI del PDF)
+//  - Categoria como enum (CAT1, CAT2)
+//  - Calibre como enum (C08..C30)
+//  - InspeccionDefecto.porcentaje -> cantidadFrutos (Int) + porcentajeCalculado (Decimal)
+//  - Inspeccion.numeroMuestra (Int) — número de muestra dentro del día
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Rol {
+  ADMIN
+  INSPECTOR
+}
+
+enum FamiliaDefecto {
+  CALIDAD
+  CONDICION
+}
+
+enum TipoInspeccion {
+  EXPORTACION
+  DESCARTE
+  RECEPCION
+}
+
+// PDF: BUENO / ACEPTABLE / MALO — para embalaje, rotulación, paletizaje
+enum EvaluacionFisica {
+  BUENO
+  ACEPTABLE
+  MALO
+}
+
+// Resultado calculado del cruce calidad x condición
+enum ResultadoFinal {
+  BUENO
+  ACEPTABLE
+  RECHAZO
+}
+
+enum Categoria {
+  CAT1
+  CAT2
+}
+
+enum Calibre {
+  C08
+  C10
+  C12
+  C14
+  C16
+  C18
+  C20
+  C22
+  C24
+  C30
+}
+
+// ============================================================
+// USUARIOS Y AUTH
+// ============================================================
+
+model Usuario {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  nombre       String
+  apellido     String
+  rol          Rol       @default(INSPECTOR)
+  activo       Boolean   @default(true)
+  ultimoLogin  DateTime? @map("ultimo_login")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  inspecciones Inspeccion[] @relation("InspeccionInspector")
+
+  @@map("usuarios")
+}
+
+// ============================================================
+// CATÁLOGOS
+// ============================================================
+
+model Fundo {
+  id        String   @id @default(uuid())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  inspecciones Inspeccion[]
+
+  @@map("fundos")
+}
+
+model Variedad {
+  id        String   @id @default(uuid())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  inspecciones Inspeccion[]
+
+  @@map("variedades")
+}
+
+model Cliente {
+  id        String   @id @default(uuid())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  inspecciones Inspeccion[]
+
+  @@map("clientes")
+}
+
+model Destino {
+  id        String   @id @default(uuid())
+  nombre    String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  inspecciones Inspeccion[]
+
+  @@map("destinos")
+}
+
+model TipoEmbalaje {
+  id          String   @id @default(uuid())
+  codigo      String   @unique
+  descripcion String
+  pesoKg      Decimal  @map("peso_kg") @db.Decimal(6, 2)
+  marca       String
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  inspecciones Inspeccion[]
+
+  @@map("tipos_embalaje")
+}
+
+model TipoDefecto {
+  id        String         @id @default(uuid())
+  nombre    String         @unique
+  familia   FamiliaDefecto
+  activo    Boolean        @default(true)
+  orden     Int            @default(0)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  defectosInspeccion InspeccionDefecto[]
+
+  @@index([familia, activo])
+  @@map("tipos_defecto")
+}
+
+// ============================================================
+// REGLAS DE CALIFICACIÓN
+// ============================================================
+
+model ReglaCalificacion {
+  id            String         @id @default(uuid())
+  familia       FamiliaDefecto
+  nota          Int
+  porcentajeMin Decimal        @map("porcentaje_min") @db.Decimal(5, 2)
+  porcentajeMax Decimal?       @map("porcentaje_max") @db.Decimal(5, 2)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  @@unique([familia, nota])
+  @@map("reglas_calificacion")
+}
+
+model MatrizCalificacionFinal {
+  id            String         @id @default(uuid())
+  notaCalidad   Int            @map("nota_calidad")
+  notaCondicion Int            @map("nota_condicion")
+  notaFinal     Int            @map("nota_final")
+  resultado     ResultadoFinal
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  @@unique([notaCalidad, notaCondicion])
+  @@map("matriz_calificacion_final")
+}
+
+// ============================================================
+// INSPECCIONES
+// ============================================================
+
+model Inspeccion {
+  id    String         @id @default(uuid())
+  tipo  TipoInspeccion
+  fecha DateTime       @db.Date
+
+  // Número de muestra dentro del día (1, 2, 3, ...) — PDF sección 2
+  numeroMuestra Int? @map("numero_muestra")
+
+  inspectorId String  @map("inspector_id")
+  inspector   Usuario @relation("InspeccionInspector", fields: [inspectorId], references: [id])
+
+  fundoId String @map("fundo_id")
+  fundo   Fundo  @relation(fields: [fundoId], references: [id])
+
+  variedadId String   @map("variedad_id")
+  variedad   Variedad @relation(fields: [variedadId], references: [id])
+
+  // Campos específicos de EXPORTACION (null si tipo != EXPORTACION)
+  tipoEmbalajeId String?       @map("tipo_embalaje_id")
+  tipoEmbalaje   TipoEmbalaje? @relation(fields: [tipoEmbalajeId], references: [id])
+
+  clienteId String?  @map("cliente_id")
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
+
+  destinoId String?  @map("destino_id")
+  destino   Destino? @relation(fields: [destinoId], references: [id])
+
+  categoria Categoria? // CAT1 / CAT2
+  plu       Boolean?
+  calibre   Calibre? // C08..C30
+
+  // Conteo total de frutos de la muestra
+  conteoMuestra Int? @map("conteo_muestra")
+
+  // Evaluaciones físicas (solo en EXPORTACION)
+  calidadEmbalaje EvaluacionFisica? @map("calidad_embalaje")
+  rotulacion      EvaluacionFisica?
+  paletizaje      EvaluacionFisica?
+
+  // Calculados al guardar — denormalizados para reportes rápidos
+  sumatoriaCalidad   Decimal?        @map("sumatoria_calidad")   @db.Decimal(6, 3)
+  sumatoriaCondicion Decimal?        @map("sumatoria_condicion") @db.Decimal(6, 3)
+  notaCalidad        Int?            @map("nota_calidad")
+  notaCondicion      Int?            @map("nota_condicion")
+  notaFinal          Int?            @map("nota_final")
+  resultadoFinal     ResultadoFinal? @map("resultado_final")
+
+  observaciones String? // Campo "NOTA" del PDF — texto libre
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  defectos InspeccionDefecto[]
+
+  @@index([fecha])
+  @@index([tipo, fecha])
+  @@index([fundoId, fecha])
+  @@index([variedadId, fecha])
+  @@index([inspectorId, fecha])
+  @@map("inspecciones")
+}
+
+// PDF: el inspector carga CANTIDAD DE FRUTOS, no porcentaje.
+// El backend calcula porcentajeCalculado = cantidadFrutos * 100 / inspeccion.conteoMuestra
+// REGLA DURA: cantidadFrutos > 0. Si el defecto no aplicó, NO se inserta fila.
+model InspeccionDefecto {
+  id            String     @id @default(uuid())
+  inspeccionId  String     @map("inspeccion_id")
+  inspeccion    Inspeccion @relation(fields: [inspeccionId], references: [id], onDelete: Cascade)
+
+  tipoDefectoId String      @map("tipo_defecto_id")
+  tipoDefecto   TipoDefecto @relation(fields: [tipoDefectoId], references: [id])
+
+  cantidadFrutos       Int     @map("cantidad_frutos")
+  porcentajeCalculado  Decimal @map("porcentaje_calculado") @db.Decimal(6, 3)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([inspeccionId, tipoDefectoId])
+  @@index([tipoDefectoId])
+  @@map("inspeccion_defectos")
+}

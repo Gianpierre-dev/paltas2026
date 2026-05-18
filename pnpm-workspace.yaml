@@ -1,0 +1,16 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Scripts de build aprobados — todos son packages estándar y confiables.
+# Prisma + bcrypt necesitan compilar/descargar binarios nativos.
+# NestJS, esbuild, sharp, unrs-resolver corren setup interno legítimo.
+allowBuilds:
+  '@nestjs/core': true
+  '@prisma/client': true
+  '@prisma/engines': true
+  bcrypt: true
+  esbuild: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true
