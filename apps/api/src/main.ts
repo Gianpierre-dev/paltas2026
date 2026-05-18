@@ -32,8 +32,10 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
-  const port = config.get<number>('PORT', 3001);
-  await app.listen(port);
+  // PORT en local viene del .env (4000); en Railway lo inyecta la plataforma.
+  // Bindea a 0.0.0.0 para que el container de Railway lo exponga correctamente.
+  const port = config.get<number>('PORT', 4000);
+  await app.listen(port, '0.0.0.0');
   console.log(`[api] listening on http://localhost:${port}/api`);
 }
 

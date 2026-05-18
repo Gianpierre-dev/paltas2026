@@ -3,10 +3,10 @@
 // API_URL_INTERNAL es opcional para SSR (si el backend está en una red interna).
 
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
+  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 
-// Permite que en Railway/Docker el SSR use una URL interna distinta a la pública.
-// Si no está seteada, cae a la pública.
+// Permite que en Railway el SSR use la red privada (xxx.railway.internal)
+// y evite egress innecesario. Si no está seteada, cae a la pública.
 export const API_URL_INTERNAL = process.env.API_URL_INTERNAL ?? API_URL;
 
 // Cookies httpOnly. Path acotado en la de refresh.
