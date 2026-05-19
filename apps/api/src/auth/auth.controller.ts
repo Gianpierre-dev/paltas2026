@@ -8,9 +8,11 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
+  ChangePasswordInputSchema,
   LoginInputSchema,
   LogoutInputSchema,
   RefreshInputSchema,
+  type ChangePasswordInput,
   type JwtPayload,
   type LoginInput,
   type LogoutInput,
@@ -20,6 +22,7 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
+import { SkipMustChangePassword } from './decorators/skip-mcp.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -56,9 +59,24 @@ export class AuthController {
     await this.auth.logout(dto.refreshToken);
   }
 
+  @SkipMustChangePassword()
   @Get('me')
   me(@CurrentUser() user: JwtPayload) {
     return this.auth.me(user.sub);
+  }
+
+  // Cambio de password del usuario logueado. NO requiere ADMIN: cualquier
+  // usuario puede cambiar su propia password. Si tenía mustChangePassword=true,
+  // se limpia. Revoca también todas las sesiones activas como medida de seguridad.
+  @SkipMustChangePassword()
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @Post('change-password')
+  @HttpCode(200)
+  changePassword(
+    @CurrentUser() user: JwtPayload,
+    @Body(new ZodValidationPipe(ChangePasswordInputSchema)) dto: ChangePasswordInput,
+  ) {
+    return this.auth.changePassword(user.sub, dto);
   }
 }
 

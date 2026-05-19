@@ -6,4 +6,5 @@ export * from './inspeccion';
 export * from './resumen';
 export * from './tipo-defecto';
 export * from './tipo-embalaje';
+export * from './usuario';
 export * from './variedad';

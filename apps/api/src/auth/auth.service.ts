@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -7,12 +8,15 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import type {
+  ChangePasswordInput,
   JwtPayload,
   LoginInput,
   LoginResponse,
   RefreshResponse,
 } from '@paltas2026/shared';
 import { PrismaService } from '../prisma/prisma.service';
+
+const BCRYPT_ROUNDS = 10;
 
 type IssueParams = { deviceInfo?: string };
 type UsuarioBasico = {
@@ -21,6 +25,7 @@ type UsuarioBasico = {
   nombre: string;
   apellido: string;
   rol: 'ADMIN' | 'INSPECTOR';
+  mustChangePassword: boolean;
 };
 
 @Injectable()
@@ -66,6 +71,7 @@ export class AuthService {
         nombre: usuario.nombre,
         apellido: usuario.apellido,
         rol: usuario.rol,
+        mustChangePassword: usuario.mustChangePassword,
       },
     };
   }
@@ -88,6 +94,7 @@ export class AuthService {
             apellido: true,
             rol: true,
             activo: true,
+            mustChangePassword: true,
           },
         },
       },
@@ -165,7 +172,15 @@ export class AuthService {
   async me(usuarioId: string): Promise<UsuarioBasico> {
     const u = await this.prisma.usuario.findUnique({
       where: { id: usuarioId },
-      select: { id: true, email: true, nombre: true, apellido: true, rol: true, activo: true },
+      select: {
+        id: true,
+        email: true,
+        nombre: true,
+        apellido: true,
+        rol: true,
+        activo: true,
+        mustChangePassword: true,
+      },
     });
     if (!u || !u.activo) {
       throw new UnauthorizedException('Usuario no encontrado o inactivo');
@@ -173,11 +188,52 @@ export class AuthService {
     return pickUsuarioPublico(u);
   }
 
-  private async issueAccessToken(usuario: { id: string; email: string; rol: UsuarioBasico['rol'] }): Promise<string> {
+  /**
+   * Cambia la password del usuario logueado. Verifica la actual, hashea la nueva,
+   * limpia mustChangePassword y revoca TODAS las sesiones (refresh tokens activos)
+   * por seguridad — fuerza re-login en otros dispositivos.
+   */
+  async changePassword(
+    usuarioId: string,
+    input: ChangePasswordInput,
+  ): Promise<{ ok: true }> {
+    const u = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      select: { id: true, passwordHash: true, activo: true },
+    });
+    if (!u || !u.activo) {
+      throw new UnauthorizedException('Usuario no encontrado o inactivo');
+    }
+    const ok = await bcrypt.compare(input.currentPassword, u.passwordHash);
+    if (!ok) {
+      throw new BadRequestException('Password actual incorrecta');
+    }
+    const newHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+    await this.prisma.$transaction([
+      this.prisma.usuario.update({
+        where: { id: usuarioId },
+        data: { passwordHash: newHash, mustChangePassword: false },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { usuarioId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    return { ok: true };
+  }
+
+  private async issueAccessToken(usuario: {
+    id: string;
+    email: string;
+    rol: UsuarioBasico['rol'];
+    mustChangePassword: boolean;
+  }): Promise<string> {
     const payload: JwtPayload = {
       sub: usuario.id,
       email: usuario.email,
       rol: usuario.rol,
+      // `mcp` (mustChangePassword) abreviado para no engordar el JWT cuando es false.
+      ...(usuario.mustChangePassword && { mcp: true }),
     };
     return this.jwt.signAsync(payload);
   }
@@ -216,5 +272,6 @@ function pickUsuarioPublico(u: UsuarioBasico): UsuarioBasico {
     nombre: u.nombre,
     apellido: u.apellido,
     rol: u.rol,
+    mustChangePassword: u.mustChangePassword,
   };
 }

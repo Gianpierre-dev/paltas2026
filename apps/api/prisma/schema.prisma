@@ -89,7 +89,10 @@ model Usuario {
   apellido     String
   rol          Rol       @default(INSPECTOR)
   activo       Boolean   @default(true)
-  ultimoLogin  DateTime? @map("ultimo_login")
+  // Cuando true, el guard bloquea al usuario excepto en /auth/change-password.
+  // Se setea en true al crear o resetear desde /admin/usuarios.
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
+  ultimoLogin        DateTime? @map("ultimo_login")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 

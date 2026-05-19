@@ -16,6 +16,7 @@ import { InspeccionesStatsModule } from './inspecciones-stats/inspecciones-stats
 import { PrismaModule } from './prisma/prisma.module';
 import { TiposDefectoModule } from './tipos-defecto/tipos-defecto.module';
 import { TiposEmbalajeModule } from './tipos-embalaje/tipos-embalaje.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
 import { VariedadesModule } from './variedades/variedades.module';
 
 @Module({
@@ -38,6 +39,7 @@ import { VariedadesModule } from './variedades/variedades.module';
     DestinosModule,
     TiposEmbalajeModule,
     TiposDefectoModule,
+    UsuariosModule,
     // Core transaccional
     InspeccionesModule,
     InspeccionesResumenModule,

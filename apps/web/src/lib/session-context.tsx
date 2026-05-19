@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { createContext, useCallback, useContext, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { UsuarioPublico } from '@paltas2026/shared';
 
 interface SessionContextValue {
@@ -11,6 +11,8 @@ interface SessionContextValue {
 
 const SessionCtx = createContext<SessionContextValue | null>(null);
 
+const CAMBIAR_PASSWORD_PATH = '/cambiar-password';
+
 export function SessionProvider({
   initialUsuario,
   children,
@@ -19,7 +21,17 @@ export function SessionProvider({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [usuario] = useState<UsuarioPublico>(initialUsuario);
+
+  // Si el backend marca mustChangePassword=true, forzamos al usuario a pasar
+  // por /cambiar-password antes de poder usar el resto del sistema. El guard
+  // del backend ya bloquea las APIs; este redirect es UX.
+  useEffect(() => {
+    if (usuario.mustChangePassword && pathname !== CAMBIAR_PASSWORD_PATH) {
+      router.push(CAMBIAR_PASSWORD_PATH);
+    }
+  }, [usuario.mustChangePassword, pathname, router]);
 
   const logout = useCallback(async () => {
     await fetch('/api/auth/logout', { method: 'POST', cache: 'no-store' }).catch(() => undefined);

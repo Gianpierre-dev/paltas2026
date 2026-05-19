@@ -13,6 +13,7 @@ const UsuarioPublicoSchema = z.object({
   nombre: z.string(),
   apellido: z.string(),
   rol: z.enum([Rol.ADMIN, Rol.INSPECTOR]),
+  mustChangePassword: z.boolean().optional().default(false),
 });
 export type UsuarioPublico = z.infer<typeof UsuarioPublicoSchema>;
 
@@ -40,5 +41,23 @@ export const JwtPayloadSchema = z.object({
   sub: z.string().uuid(),
   email: z.string().email(),
   rol: z.enum([Rol.ADMIN, Rol.INSPECTOR]),
+  // Flag opcional para forzar cambio de password al primer login.
+  // Si está en true, el guard rechaza todo excepto /auth/me, /auth/logout
+  // y /auth/change-password.
+  mcp: z.boolean().optional(),
 });
 export type JwtPayload = z.infer<typeof JwtPayloadSchema>;
+
+export const ChangePasswordInputSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Password actual requerida'),
+    newPassword: z
+      .string()
+      .min(8, 'La nueva password debe tener al menos 8 caracteres')
+      .max(72, 'Máximo 72 caracteres'),
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    message: 'La nueva password debe ser distinta a la actual',
+    path: ['newPassword'],
+  });
+export type ChangePasswordInput = z.infer<typeof ChangePasswordInputSchema>;

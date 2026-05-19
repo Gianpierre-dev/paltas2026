@@ -88,6 +88,20 @@ export default async function DashboardPage() {
               description="Generar Excel ejecutivo con detalle y resúmenes"
             />
           )}
+          {esAdmin && (
+            <ActionCard
+              href="/admin/usuarios"
+              icon="👥"
+              title="Usuarios (Admin)"
+              description="Inspectores y administradores"
+            />
+          )}
+          <ActionCard
+            href="/cambiar-password"
+            icon="🔑"
+            title="Cambiar password"
+            description="Actualizar mi password"
+          />
         </div>
       </section>
     </div>
