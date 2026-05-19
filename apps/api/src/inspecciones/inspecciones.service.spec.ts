@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import {
   Calibre,
   Categoria,
@@ -6,11 +6,30 @@ import {
   FamiliaDefecto,
   Prisma,
   ResultadoFinal,
+  Rol,
   TipoInspeccion,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import type { CreateInspeccionInput } from '@paltas2026/shared';
+import type { CreateInspeccionInput, JwtPayload } from '@paltas2026/shared';
 import { InspeccionesService } from './inspecciones.service';
+
+const INSPECTOR_OWNER_ID = '55555555-5555-5555-5555-555555555555';
+const INSPECTOR_OTHER_ID = '99999999-9999-9999-9999-999999999999';
+const ADMIN_USER: JwtPayload = {
+  sub: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  email: 'admin@test',
+  rol: Rol.ADMIN,
+};
+const INSPECTOR_OWNER_USER: JwtPayload = {
+  sub: INSPECTOR_OWNER_ID,
+  email: 'owner@test',
+  rol: Rol.INSPECTOR,
+};
+const INSPECTOR_OTHER_USER: JwtPayload = {
+  sub: INSPECTOR_OTHER_ID,
+  email: 'other@test',
+  rol: Rol.INSPECTOR,
+};
 
 // Mock minimal de PrismaService. Solo se mockea lo que el test toca.
 type MockTx = {
@@ -90,7 +109,7 @@ const FUNDO_ID = '11111111-1111-1111-1111-111111111111';
 const VARIEDAD_ID = '22222222-2222-2222-2222-222222222222';
 const TIPO_DEFECTO_CALIDAD_ID = '33333333-3333-3333-3333-333333333333';
 const TIPO_DEFECTO_CONDICION_ID = '44444444-4444-4444-4444-444444444444';
-const INSPECTOR_ID = '55555555-5555-5555-5555-555555555555';
+const INSPECTOR_ID = INSPECTOR_OWNER_ID;
 const INSPECCION_ID = '66666666-6666-6666-6666-666666666666';
 
 function buildReglas() {
@@ -209,6 +228,7 @@ describe('InspeccionesService', () => {
         id: INSPECCION_ID,
         conteoMuestra: 100,
         deletedAt: null,
+        inspectorId: INSPECTOR_OWNER_ID,
         defectos: [
           {
             id: 'd1',
@@ -224,12 +244,12 @@ describe('InspeccionesService', () => {
 
     it('rebota si inspección está soft-deleted', async () => {
       prisma.inspeccion.findUnique.mockResolvedValue(existingInspeccion({ deletedAt: new Date() }));
-      await expect(service.update(INSPECCION_ID, { conteoMuestra: 200 })).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.update(INSPECCION_ID, { conteoMuestra: 200 }, ADMIN_USER)).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rebota si inspección no existe', async () => {
       prisma.inspeccion.findUnique.mockResolvedValue(null);
-      await expect(service.update(INSPECCION_ID, { conteoMuestra: 200 })).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.update(INSPECCION_ID, { conteoMuestra: 200 }, ADMIN_USER)).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('cuando solo cambia conteoMuestra, recalcula porcentajes de defectos existentes', async () => {
@@ -240,7 +260,7 @@ describe('InspeccionesService', () => {
       const tx = prisma.__tx as MockTx;
       tx.inspeccion.update.mockResolvedValue({ id: INSPECCION_ID });
 
-      await service.update(INSPECCION_ID, { conteoMuestra: 200 });
+      await service.update(INSPECCION_ID, { conteoMuestra: 200 }, ADMIN_USER);
 
       expect(tx.inspeccionDefecto.updateMany).toHaveBeenCalledWith({
         where: { inspeccionId: INSPECCION_ID, tipoDefectoId: TIPO_DEFECTO_CALIDAD_ID },
@@ -262,16 +282,40 @@ describe('InspeccionesService', () => {
           ],
         }),
       );
-      await expect(service.update(INSPECCION_ID, { conteoMuestra: 10 })).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.update(INSPECCION_ID, { conteoMuestra: 10 }, ADMIN_USER)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('INSPECTOR puede editar SU PROPIA inspección', async () => {
+      prisma.inspeccion.findUnique.mockResolvedValue(existingInspeccion());
+      prisma.reglaCalificacion.findMany.mockResolvedValue(buildReglas());
+      prisma.matrizCalificacionFinal.findMany.mockResolvedValue(buildMatriz());
+      // @ts-expect-error tx
+      const tx = prisma.__tx as MockTx;
+      tx.inspeccion.update.mockResolvedValue({ id: INSPECCION_ID });
+
+      await expect(
+        service.update(INSPECCION_ID, { conteoMuestra: 200 }, INSPECTOR_OWNER_USER),
+      ).resolves.toBeDefined();
+    });
+
+    it('INSPECTOR NO puede editar inspección de OTRO inspector', async () => {
+      prisma.inspeccion.findUnique.mockResolvedValue(existingInspeccion());
+      await expect(
+        service.update(INSPECCION_ID, { conteoMuestra: 200 }, INSPECTOR_OTHER_USER),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 
   describe('remove (soft delete)', () => {
     it('setea deletedAt en vez de borrar la fila', async () => {
-      prisma.inspeccion.findUnique.mockResolvedValue({ id: INSPECCION_ID, deletedAt: null });
+      prisma.inspeccion.findUnique.mockResolvedValue({
+        id: INSPECCION_ID,
+        deletedAt: null,
+        inspectorId: INSPECTOR_OWNER_ID,
+      });
       prisma.inspeccion.update.mockResolvedValue({});
 
-      await service.remove(INSPECCION_ID);
+      await service.remove(INSPECCION_ID, ADMIN_USER);
 
       expect(prisma.inspeccion.delete).not.toHaveBeenCalled();
       expect(prisma.inspeccion.update).toHaveBeenCalledWith({
@@ -281,22 +325,52 @@ describe('InspeccionesService', () => {
     });
 
     it('rebota si la inspección ya estaba eliminada', async () => {
-      prisma.inspeccion.findUnique.mockResolvedValue({ id: INSPECCION_ID, deletedAt: new Date() });
-      await expect(service.remove(INSPECCION_ID)).rejects.toBeInstanceOf(BadRequestException);
+      prisma.inspeccion.findUnique.mockResolvedValue({
+        id: INSPECCION_ID,
+        deletedAt: new Date(),
+        inspectorId: INSPECTOR_OWNER_ID,
+      });
+      await expect(service.remove(INSPECCION_ID, ADMIN_USER)).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rebota si la inspección no existe', async () => {
       prisma.inspeccion.findUnique.mockResolvedValue(null);
-      await expect(service.remove(INSPECCION_ID)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.remove(INSPECCION_ID, ADMIN_USER)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('INSPECTOR puede eliminar SU PROPIA inspección', async () => {
+      prisma.inspeccion.findUnique.mockResolvedValue({
+        id: INSPECCION_ID,
+        deletedAt: null,
+        inspectorId: INSPECTOR_OWNER_ID,
+      });
+      prisma.inspeccion.update.mockResolvedValue({});
+      await expect(service.remove(INSPECCION_ID, INSPECTOR_OWNER_USER)).resolves.toEqual({
+        id: INSPECCION_ID,
+        deleted: true,
+      });
+    });
+
+    it('INSPECTOR NO puede eliminar inspección de OTRO inspector', async () => {
+      prisma.inspeccion.findUnique.mockResolvedValue({
+        id: INSPECCION_ID,
+        deletedAt: null,
+        inspectorId: INSPECTOR_OWNER_ID,
+      });
+      await expect(service.remove(INSPECCION_ID, INSPECTOR_OTHER_USER)).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 
   describe('restore', () => {
     it('limpia deletedAt cuando la inspección está eliminada', async () => {
-      prisma.inspeccion.findUnique.mockResolvedValue({ id: INSPECCION_ID, deletedAt: new Date() });
+      prisma.inspeccion.findUnique.mockResolvedValue({
+        id: INSPECCION_ID,
+        deletedAt: new Date(),
+        inspectorId: INSPECTOR_OWNER_ID,
+      });
       prisma.inspeccion.update.mockResolvedValue({});
 
-      await service.restore(INSPECCION_ID);
+      await service.restore(INSPECCION_ID, ADMIN_USER);
 
       expect(prisma.inspeccion.update).toHaveBeenCalledWith({
         where: { id: INSPECCION_ID },
@@ -305,8 +379,21 @@ describe('InspeccionesService', () => {
     });
 
     it('rebota si la inspección NO estaba eliminada', async () => {
-      prisma.inspeccion.findUnique.mockResolvedValue({ id: INSPECCION_ID, deletedAt: null });
-      await expect(service.restore(INSPECCION_ID)).rejects.toBeInstanceOf(BadRequestException);
+      prisma.inspeccion.findUnique.mockResolvedValue({
+        id: INSPECCION_ID,
+        deletedAt: null,
+        inspectorId: INSPECTOR_OWNER_ID,
+      });
+      await expect(service.restore(INSPECCION_ID, ADMIN_USER)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('INSPECTOR NO puede restaurar inspección de OTRO inspector', async () => {
+      prisma.inspeccion.findUnique.mockResolvedValue({
+        id: INSPECCION_ID,
+        deletedAt: new Date(),
+        inspectorId: INSPECTOR_OWNER_ID,
+      });
+      await expect(service.restore(INSPECCION_ID, INSPECTOR_OTHER_USER)).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 

@@ -37,7 +37,7 @@ interface InspeccionDetalle {
   cliente: { nombre: string } | null;
   destino: { nombre: string } | null;
   tipoEmbalaje: { codigo: string; descripcion: string } | null;
-  inspector: { nombre: string; apellido: string; email: string } | null;
+  inspector: { id: string; nombre: string; apellido: string; email: string } | null;
   defectos: Array<{
     id: string;
     cantidadFrutos: number;
@@ -77,6 +77,10 @@ export default async function DetalleInspeccionPage({
   const defectosCondicion = data.defectos.filter(
     (d) => d.tipoDefecto.familia === FamiliaDefecto.CONDICION,
   );
+
+  // Admin puede tocar cualquier inspección; inspector solo las propias.
+  const isOwner = data.inspector?.id === session.usuario.id;
+  const canModify = isAdmin || isOwner;
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -153,7 +157,7 @@ export default async function DetalleInspeccionPage({
         </>
       )}
 
-      {isAdmin && <AdminActions inspeccionId={data.id} />}
+      {canModify && <AdminActions inspeccionId={data.id} />}
 
       <div className="pt-2">
         <Link

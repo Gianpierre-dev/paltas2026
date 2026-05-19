@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { FamiliaDefecto, Prisma, ResultadoFinal } from '@prisma/client';
+import { FamiliaDefecto, Prisma, ResultadoFinal, Rol } from '@prisma/client';
 import type {
   CreateInspeccionInput,
+  JwtPayload,
   ListInspeccionesQuery,
   UpdateInspeccionInput,
 } from '@paltas2026/shared';
@@ -140,7 +142,7 @@ export class InspeccionesService {
     });
   }
 
-  async update(id: string, input: UpdateInspeccionInput) {
+  async update(id: string, input: UpdateInspeccionInput, user: JwtPayload) {
     // 1) Verificar que existe + traer defectos actuales para fallback de recálculo
     const existing = await this.prisma.inspeccion.findUnique({
       where: { id },
@@ -149,6 +151,7 @@ export class InspeccionesService {
       },
     });
     if (!existing) throw new NotFoundException(`Inspeccion ${id} no encontrada`);
+    this.assertCanModify(existing, user);
     if (existing.deletedAt !== null) {
       throw new BadRequestException(
         `Inspeccion ${id} está eliminada. Restaurala antes de editar.`,
@@ -358,12 +361,13 @@ export class InspeccionesService {
    * Trazabilidad agro: nunca borramos físicamente una inspección — el contenedor
    * que originó esa muestra puede aparecer en una observación de cliente meses después.
    */
-  async remove(id: string) {
+  async remove(id: string, user: JwtPayload) {
     const existing = await this.prisma.inspeccion.findUnique({
       where: { id },
-      select: { id: true, deletedAt: true },
+      select: { id: true, deletedAt: true, inspectorId: true },
     });
     if (!existing) throw new NotFoundException(`Inspeccion ${id} no encontrada`);
+    this.assertCanModify(existing, user);
     if (existing.deletedAt !== null) {
       throw new BadRequestException(`Inspeccion ${id} ya estaba eliminada`);
     }
@@ -375,14 +379,16 @@ export class InspeccionesService {
   }
 
   /**
-   * Restore: anula el soft delete. Solo ADMIN — el guard lo controla en el controller.
+   * Restore: anula el soft delete. Admin puede restaurar cualquiera;
+   * inspector solo las suyas.
    */
-  async restore(id: string) {
+  async restore(id: string, user: JwtPayload) {
     const existing = await this.prisma.inspeccion.findUnique({
       where: { id },
-      select: { id: true, deletedAt: true },
+      select: { id: true, deletedAt: true, inspectorId: true },
     });
     if (!existing) throw new NotFoundException(`Inspeccion ${id} no encontrada`);
+    this.assertCanModify(existing, user);
     if (existing.deletedAt === null) {
       throw new BadRequestException(`Inspeccion ${id} no está eliminada`);
     }
@@ -391,6 +397,23 @@ export class InspeccionesService {
       data: { deletedAt: null },
     });
     return { id, restored: true };
+  }
+
+  /**
+   * Verifica que el usuario pueda modificar la inspección.
+   * ADMIN: todo. INSPECTOR: solo las propias (inspectorId === user.sub).
+   * Tira ForbiddenException (HTTP 403) si no.
+   */
+  private assertCanModify(
+    inspeccion: { inspectorId: string },
+    user: JwtPayload,
+  ): void {
+    if (user.rol === Rol.ADMIN) return;
+    if (inspeccion.inspectorId !== user.sub) {
+      throw new ForbiddenException(
+        'Solo podés modificar inspecciones que cargaste vos',
+      );
+    }
   }
 
   async getById(id: string) {

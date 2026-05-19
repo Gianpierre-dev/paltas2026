@@ -28,6 +28,7 @@ interface InspeccionRaw {
   calidadEmbalaje: EvaluacionFisica | null;
   rotulacion: EvaluacionFisica | null;
   paletizaje: EvaluacionFisica | null;
+  inspector: { id: string } | null;
   defectos: Array<{
     tipoDefectoId: string;
     cantidadFrutos: number;
@@ -42,7 +43,6 @@ export default async function EditarInspeccionPage({
   const { id } = await params;
   const session = await getServerSession();
   if (!session) redirect('/login');
-  if (session.usuario.rol !== Rol.ADMIN) redirect(`/inspecciones/${id}`);
 
   let raw: InspeccionRaw | null = null;
   try {
@@ -58,6 +58,11 @@ export default async function EditarInspeccionPage({
     );
   }
   if (!raw) notFound();
+
+  // Admin puede editar cualquiera; inspector solo las propias.
+  const isAdmin = session.usuario.rol === Rol.ADMIN;
+  const isOwner = raw.inspector?.id === session.usuario.id;
+  if (!isAdmin && !isOwner) redirect(`/inspecciones/${id}`);
 
   const catalogos = await fetchCatalogosForForm();
   if (!catalogos) {
