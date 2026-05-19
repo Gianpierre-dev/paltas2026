@@ -3,7 +3,10 @@ import { Rol } from '../constants';
 
 export const LoginInputSchema = z.object({
   email: z.string().email('Email inválido').toLowerCase().trim(),
-  password: z.string().min(8, 'Password debe tener al menos 8 caracteres'),
+  // El login NO valida largo mínimo — eso se valida al CREAR/CAMBIAR la
+  // password (ChangePasswordInputSchema). Acá solo chequeamos no-vacío
+  // para no rebotar credenciales válidas que existan en la DB.
+  password: z.string().min(1, 'Password requerida'),
 });
 export type LoginInput = z.infer<typeof LoginInputSchema>;
 

@@ -45,8 +45,9 @@ import { calcularNota, lookupMatriz } from '../src/inspecciones/calificacion';
 // CONFIG
 // ============================================================
 
-const EXCEL_PATH = path.resolve(__dirname, '../../../requesitos/Inspecciones de proceso (33).xlsx');
+const EXCEL_PATH = path.resolve(__dirname, '../../../docs/Inspecciones de proceso (33).xlsx');
 const SHEET_EXPORTACION = 'Exportación';
+const SHEET_DESCARTE = 'Descarte';
 const BATCH_SIZE = 100;
 
 const INSPECTOR_DUMMY = {
@@ -160,6 +161,64 @@ const CLIENTE_ALIAS: Record<string, string> = {
 };
 
 // ============================================================
+// HOJA "Descarte" — formato distinto a Exportación
+// ============================================================
+// La hoja Descarte tiene una columna "Fruta Buena" explícita (porcentaje).
+// La estructura es más simple: sin cliente, destino, embalaje, PLU, categoría.
+type DescarteRow = {
+  'Fecha Proceso': Date | string | number | null;
+  Fundo: string | null;
+  Variedad: string | null;
+  'Conteo Muestra': number | string | null;
+  // Defectos CALIDAD
+  Lenticelas: number | null;
+  'Trips/Estrias': number | null;
+  'Deformación': number | null;
+  Cicatriz: number | null;
+  Russet: number | null;
+  'Pedúnculo Largo': number | null;
+  Sombreado: number | null;
+  'Sin pedunculo': number | null;
+  'Otros defectos de calidad': number | null;
+  'Daño de sol': number | null;
+  // Defectos CONDICION
+  'Daño mecánico': number | null;
+  'Golpe/Machucón': number | null;
+  'Sobremaduración / Blando': number | null;
+  Fumagina: number | null;
+  'Herida Abierta': number | null;
+  'Semilla Suelta': number | null;
+  Deshidratado: number | null;
+  'Pudrición': number | null;
+  Hongo: number | null;
+  'Otros defectos de condición': number | null;
+  'Fruta Buena': number | null;
+};
+
+// Defectos del Descarte → catálogo. "Daño de sol" sale en Descarte y NO en
+// Exportación de la planilla original.
+const DESCARTE_COLUMN_TO_DEFECTO: Array<{ col: keyof DescarteRow; defectoNombre: string }> = [
+  { col: 'Lenticelas', defectoNombre: 'Lenticelas' },
+  { col: 'Trips/Estrias', defectoNombre: 'Trips/Estrías' },
+  { col: 'Deformación', defectoNombre: 'Deformación' },
+  { col: 'Cicatriz', defectoNombre: 'Cicatriz' },
+  { col: 'Russet', defectoNombre: 'Russet' },
+  { col: 'Pedúnculo Largo', defectoNombre: 'Pedúnculo largo' },
+  { col: 'Sombreado', defectoNombre: 'Sombreado' },
+  { col: 'Sin pedunculo', defectoNombre: 'Sin pedúnculo' },
+  { col: 'Daño de sol', defectoNombre: 'Daño de sol' },
+  { col: 'Daño mecánico', defectoNombre: 'Daño mecánico' },
+  { col: 'Golpe/Machucón', defectoNombre: 'Golpe/Machucón' },
+  { col: 'Sobremaduración / Blando', defectoNombre: 'Sobremaduro/Blando' },
+  { col: 'Fumagina', defectoNombre: 'Fumagina' },
+  { col: 'Herida Abierta', defectoNombre: 'Herida abierta' },
+  { col: 'Semilla Suelta', defectoNombre: 'Pepa suelta' },
+  { col: 'Deshidratado', defectoNombre: 'Deshidratado' },
+  { col: 'Pudrición', defectoNombre: 'Pudrición' },
+  { col: 'Hongo', defectoNombre: 'Hongo' },
+];
+
+// ============================================================
 // HELPERS
 // ============================================================
 
@@ -238,6 +297,7 @@ type FilaInvalida = {
 
 type FilaValida = {
   rowNum: number;
+  tipo: TipoInspeccion;
   fecha: Date;
   fundoId: string;
   variedadId: string;
@@ -247,6 +307,7 @@ type FilaValida = {
   categoria: Categoria | null;
   plu: boolean | null;
   conteoMuestra: number;
+  frutosBuenos: number;
   sumatoriaCalidad: number;
   sumatoriaCondicion: number;
   notaCalidad: number;
@@ -355,17 +416,19 @@ async function main() {
   const totalLeidas = rowsRaw.length;
   const rows = args.limit ? rowsRaw.slice(0, args.limit) : rowsRaw;
 
-  // NOTA: la hoja Descarte tiene formato distinto (otras columnas, no tiene Cliente/Destino/
-  // Embalaje) — se omite. TODO en próxima iteración.
-  const descarteRows = wb.SheetNames.includes('Descarte')
-    ? (() => {
-        const wsD = wb.Sheets['Descarte'];
-        return XLSX.utils.sheet_to_json(wsD, { defval: null }).length;
-      })()
-    : 0;
+  // Hoja Descarte: formato más simple, tiene "Fruta Buena" explícita.
+  const wsDescarte = wb.SheetNames.includes(SHEET_DESCARTE)
+    ? wb.Sheets[SHEET_DESCARTE]
+    : null;
+  const descarteRowsRaw = wsDescarte
+    ? XLSX.utils.sheet_to_json<DescarteRow>(wsDescarte, { defval: null })
+    : [];
+  const descarteRows = args.limit
+    ? descarteRowsRaw.slice(0, args.limit)
+    : descarteRowsRaw;
 
   console.log(`  Hoja "${SHEET_EXPORTACION}": ${totalLeidas} filas (procesando ${rows.length})`);
-  console.log(`  Hoja "Descarte": ${descarteRows} filas — SE SALTAN (TODO próxima versión)`);
+  console.log(`  Hoja "${SHEET_DESCARTE}":    ${descarteRowsRaw.length} filas (procesando ${descarteRows.length})`);
 
   // ----- Validar y mapear
   console.log('\n[2/3] Validando y mapeando filas...');
@@ -544,8 +607,14 @@ async function main() {
       continue;
     }
 
+    // frutosBuenos = conteoMuestra - Σ cantidadFrutos defectuosos.
+    // Por construcción la suma cierra exacta (el redondeo se compensa en el cálculo).
+    const sumaCantidadDefectos = defectosInsp.reduce((acc, d) => acc + d.cantidadFrutos, 0);
+    const frutosBuenos = Math.max(0, conteo - sumaCantidadDefectos);
+
     validas.push({
       rowNum,
+      tipo: TipoInspeccion.EXPORTACION,
       fecha,
       fundoId,
       variedadId: variedad.id,
@@ -555,6 +624,7 @@ async function main() {
       categoria,
       plu,
       conteoMuestra: conteo,
+      frutosBuenos,
       sumatoriaCalidad,
       sumatoriaCondicion,
       notaCalidad,
@@ -564,6 +634,135 @@ async function main() {
       defectos: defectosInsp,
     });
   }
+
+  // ----- Procesar hoja Descarte
+  console.log('\n  Procesando hoja Descarte...');
+  let descarteSkipped = 0;
+  let descarteOkBefore = validas.length;
+
+  for (let i = 0; i < descarteRows.length; i++) {
+    const row = descarteRows[i];
+    const rowNum = i + 2; // referenciamos a la hoja Descarte, no Exportación
+
+    // Fila vacía (padding)
+    if (!row['Fecha Proceso'] && !row.Fundo && !row.Variedad && !row['Conteo Muestra']) {
+      descarteSkipped++;
+      continue;
+    }
+
+    const fechaRaw = parseFecha(row['Fecha Proceso'] as Date | string | number | null);
+    if (!fechaRaw) {
+      addInvalid(rowNum, 'Descarte: Fecha inválida', String(row['Fecha Proceso']));
+      continue;
+    }
+    const fecha = parseDateOnly(fechaRaw);
+
+    const conteo = parseConteo(row['Conteo Muestra']);
+    if (!conteo) {
+      addInvalid(rowNum, 'Descarte: Sin conteo válido', String(row['Conteo Muestra']));
+      continue;
+    }
+
+    const variedadName = row.Variedad?.trim() ?? '';
+    if (!variedadName) {
+      addInvalid(rowNum, 'Descarte: Variedad ausente');
+      continue;
+    }
+    const variedad = variedadByName.get(normalize(variedadName));
+    if (!variedad) {
+      addInvalid(rowNum, 'Descarte: Variedad no encontrada', variedadName);
+      continue;
+    }
+
+    const fundoName = row.Fundo?.trim() ?? '';
+    let fundoId: string | null = null;
+    if (fundoName) {
+      const fundo = fundoByName.get(normalize(fundoName));
+      if (fundo) {
+        fundoId = fundo.id;
+      } else {
+        addInvalid(rowNum, 'Descarte: Fundo no encontrado', fundoName);
+        continue;
+      }
+    } else {
+      if (!fundoSinEspId) {
+        addInvalid(rowNum, 'Descarte: Fundo ausente (correr --apply crea "Sin especificar")');
+        continue;
+      }
+      fundoId = fundoSinEspId;
+    }
+
+    // Defectos del Descarte: % → cantidadFrutos por conversión inversa
+    const defectosInsp: FilaValida['defectos'] = [];
+    for (const { col, defectoNombre } of DESCARTE_COLUMN_TO_DEFECTO) {
+      const raw = row[col] as number | null;
+      if (raw === null || raw === undefined) continue;
+      const pct = Number(raw);
+      if (!Number.isFinite(pct) || pct <= 0) continue;
+      const cantidadFrutos = Math.round((pct * conteo) / 100);
+      if (cantidadFrutos <= 0) continue;
+      const porcentajeCalculado = (cantidadFrutos * 100) / conteo;
+      const def = defectoByName.get(normalize(defectoNombre))!;
+      defectosInsp.push({
+        tipoDefectoId: def.id,
+        cantidadFrutos,
+        porcentajeCalculado,
+      });
+    }
+
+    const defectosConFamilia = defectosInsp.map((d) => {
+      const tipoDef = tiposDefecto.find((t) => t.id === d.tipoDefectoId)!;
+      return { ...d, familia: tipoDef.familia };
+    });
+    const sumatoriaCalidad = defectosConFamilia
+      .filter((d) => d.familia === FamiliaDefecto.CALIDAD)
+      .reduce((acc, d) => acc + d.porcentajeCalculado, 0);
+    const sumatoriaCondicion = defectosConFamilia
+      .filter((d) => d.familia === FamiliaDefecto.CONDICION)
+      .reduce((acc, d) => acc + d.porcentajeCalculado, 0);
+
+    const notaCalidad = calcularNota(sumatoriaCalidad, FamiliaDefecto.CALIDAD, reglas);
+    const notaCondicion = calcularNota(sumatoriaCondicion, FamiliaDefecto.CONDICION, reglas);
+    if (notaCalidad === null || notaCondicion === null) {
+      addInvalid(rowNum, 'Descarte: Nota no calculable', `cal=${sumatoriaCalidad} cond=${sumatoriaCondicion}`);
+      continue;
+    }
+    const matrizMatch = lookupMatriz(notaCalidad, notaCondicion, matriz);
+    if (!matrizMatch) {
+      addInvalid(rowNum, 'Descarte: Matriz sin entrada', `cal=${notaCalidad} cond=${notaCondicion}`);
+      continue;
+    }
+
+    // frutosBuenos: por construcción cierra (suma exacta). El Excel trae el %
+    // como referencia, pero el campo guardado es la cantidad derivada.
+    const sumaCantidadDefectos = defectosInsp.reduce((acc, d) => acc + d.cantidadFrutos, 0);
+    const frutosBuenos = Math.max(0, conteo - sumaCantidadDefectos);
+
+    validas.push({
+      rowNum,
+      tipo: TipoInspeccion.DESCARTE,
+      fecha,
+      fundoId,
+      variedadId: variedad.id,
+      tipoEmbalajeId: null,
+      clienteId: null,
+      destinoId: null,
+      categoria: null,
+      plu: null,
+      conteoMuestra: conteo,
+      frutosBuenos,
+      sumatoriaCalidad,
+      sumatoriaCondicion,
+      notaCalidad,
+      notaCondicion,
+      notaFinal: matrizMatch.notaFinal,
+      resultadoFinal: matrizMatch.resultado,
+      defectos: defectosInsp,
+    });
+  }
+
+  const descarteOk = validas.length - descarteOkBefore;
+  console.log(`  Descarte: ${descarteOk} válidas, ${descarteSkipped} vacías skipped`);
 
   // ----- Reporte
   console.log('\n[3/3] Reporte de validación');
@@ -612,7 +811,7 @@ async function main() {
         for (const v of batch) {
           await tx.inspeccion.create({
             data: {
-              tipo: TipoInspeccion.EXPORTACION,
+              tipo: v.tipo,
               fecha: v.fecha,
               numeroMuestra: null,
               inspectorId: inspectorDummyId!,
@@ -625,6 +824,7 @@ async function main() {
               plu: v.plu,
               calibre: null,
               conteoMuestra: v.conteoMuestra,
+              frutosBuenos: v.frutosBuenos,
               calidadEmbalaje: null,
               rotulacion: null,
               paletizaje: null,

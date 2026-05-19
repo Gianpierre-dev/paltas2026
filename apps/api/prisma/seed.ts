@@ -19,15 +19,16 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function seedUsuarios() {
-  const adminHash = await bcrypt.hash('Admin2026!', 10);
-  const inspectorHash = await bcrypt.hash('Inspector2026!', 10);
+  // Credenciales por defecto para dev/staging. En producción reemplazá vía
+  // /admin/usuarios y reset-password, NO uses estas en Railway.
+  const hash = await bcrypt.hash('123456', 10);
 
   await prisma.usuario.upsert({
-    where: { email: 'admin@paltas2026.local' },
-    update: {},
+    where: { email: 'admin@paltas.com' },
+    update: { passwordHash: hash, activo: true, mustChangePassword: false },
     create: {
-      email: 'admin@paltas2026.local',
-      passwordHash: adminHash,
+      email: 'admin@paltas.com',
+      passwordHash: hash,
       nombre: 'Admin',
       apellido: 'Paltas',
       rol: Rol.ADMIN,
@@ -35,11 +36,11 @@ async function seedUsuarios() {
   });
 
   await prisma.usuario.upsert({
-    where: { email: 'inspector@paltas2026.local' },
-    update: {},
+    where: { email: 'inspector@paltas.com' },
+    update: { passwordHash: hash, activo: true, mustChangePassword: false },
     create: {
-      email: 'inspector@paltas2026.local',
-      passwordHash: inspectorHash,
+      email: 'inspector@paltas.com',
+      passwordHash: hash,
       nombre: 'Inspector',
       apellido: 'Demo',
       rol: Rol.INSPECTOR,
@@ -255,17 +256,19 @@ async function seedMatriz() {
 }
 
 async function main() {
-  console.log('[seed] Iniciando (solo configuración crítica: usuarios + reglas + matriz)...');
+  console.log('[seed] Iniciando...');
   await seedUsuarios();
   await seedReglasCalificacion();
   await seedMatriz();
-  // Catálogos desactivados — los carga el admin desde la UI.
-  // await seedVariedades();
-  // await seedFundos();
-  // await seedDestinos();
-  // await seedClientes();
-  // await seedTiposEmbalaje();
-  // await seedTiposDefecto();
+  // Catálogos: necesarios para la migración histórica y para que el admin
+  // tenga el inventario inicial disponible. Una vez cargados, el admin
+  // puede editarlos o agregar más desde /admin/catalogos.
+  await seedVariedades();
+  await seedFundos();
+  await seedDestinos();
+  await seedClientes();
+  await seedTiposEmbalaje();
+  await seedTiposDefecto();
   console.log('[seed] Completado.');
 }
 
