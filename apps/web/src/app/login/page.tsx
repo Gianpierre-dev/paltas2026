@@ -3,11 +3,21 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LoginInputSchema, type LoginInput, type UsuarioPublico } from '@paltas2026/shared';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { FieldRow } from '@/components/forms/field-row';
 
+// useSearchParams() requiere Suspense para que Next pueda prerender la página.
+// El form vive adentro; el wrapper exterior provee el boundary.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get('next') ?? '/dashboard';
