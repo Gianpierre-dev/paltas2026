@@ -129,6 +129,15 @@ export const ExportInspeccionesQuerySchema = z.object({
 });
 export type ExportInspeccionesQuery = z.infer<typeof ExportInspeccionesQuerySchema>;
 
+// Reporte diario ejecutivo: pivot por fundo + hoja Descarte para una fecha
+// puntual. Imita el formato del Excel "Reportes de Inspeccion diaria".
+export const ExportInspeccionesDiarioQuerySchema = z.object({
+  fecha: z.coerce.date(),
+});
+export type ExportInspeccionesDiarioQuery = z.infer<
+  typeof ExportInspeccionesDiarioQuerySchema
+>;
+
 export const ListInspeccionesQuerySchema = z.object({
   tipo: z.enum(TIPO_INSPECCION_VALUES).optional(),
   fundoId: z.string().uuid().optional(),

@@ -1,7 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { FamiliaDefecto, Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
-import type { ExportInspeccionesQuery } from '@paltas2026/shared';
+import type {
+  ExportInspeccionesDiarioQuery,
+  ExportInspeccionesQuery,
+} from '@paltas2026/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
 const MAX_RANGE_DAYS = 365;
@@ -45,6 +48,32 @@ export class InspeccionesExportService {
     if (dias > MAX_RANGE_DAYS) {
       throw new BadRequestException(`El rango no puede exceder ${MAX_RANGE_DAYS} días`);
     }
+  }
+
+  /**
+   * Inspecciones de UN día específico con todos los includes que el reporte
+   * diario necesita (variedad, embalaje con marca/peso, defectos con familia).
+   */
+  private async fetchInspeccionesDia(fecha: Date) {
+    const desde = new Date(fecha);
+    desde.setUTCHours(0, 0, 0, 0);
+    const hasta = new Date(fecha);
+    hasta.setUTCHours(23, 59, 59, 999);
+    return this.prisma.inspeccion.findMany({
+      where: { fecha: { gte: desde, lte: hasta }, deletedAt: null },
+      orderBy: [{ fundoId: 'asc' }, { numeroMuestra: 'asc' }, { createdAt: 'asc' }],
+      include: {
+        fundo: { select: { id: true, nombre: true } },
+        variedad: { select: { nombre: true } },
+        cliente: { select: { nombre: true } },
+        destino: { select: { nombre: true } },
+        tipoEmbalaje: { select: { codigo: true, descripcion: true, marca: true, pesoKg: true } },
+        inspector: { select: { nombre: true, apellido: true } },
+        defectos: {
+          include: { tipoDefecto: { select: { id: true, nombre: true, familia: true, orden: true } } },
+        },
+      },
+    });
   }
 
   private async fetchInspecciones(query: ExportInspeccionesQuery) {
@@ -138,6 +167,419 @@ export class InspeccionesExportService {
     this.styleHeader(sheet);
     this.colorearResultados(sheet, 'resultadoFinal');
     this.addTitle(sheet, query, inspecciones.length);
+  }
+
+  /**
+   * Reporte diario ejecutivo: imita el formato del Excel "Reportes de Inspeccion
+   * diaria" del cliente. Genera UNA hoja por fundo con inspecciones de
+   * exportación ese día (pivot: columnas = muestras, filas = atributos +
+   * defectos) más una hoja Descarte pivot por fundo si hay descartes.
+   */
+  async generateDailyReport(
+    query: ExportInspeccionesDiarioQuery,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const [inspecciones, tiposDefecto] = await Promise.all([
+      this.fetchInspeccionesDia(query.fecha),
+      this.prisma.tipoDefecto.findMany({
+        where: { activo: true },
+        orderBy: [{ familia: 'asc' }, { orden: 'asc' }],
+      }),
+    ]);
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Paltas 2026';
+    workbook.created = new Date();
+
+    // Agrupar exportaciones por fundo, separar descartes
+    const exportPorFundo = new Map<string, typeof inspecciones>();
+    const descartes: typeof inspecciones = [];
+
+    for (const i of inspecciones) {
+      if (i.tipo === 'EXPORTACION' && i.fundo) {
+        const key = i.fundo.id;
+        const arr = exportPorFundo.get(key) ?? [];
+        arr.push(i);
+        exportPorFundo.set(key, arr);
+      } else if (i.tipo === 'DESCARTE') {
+        descartes.push(i);
+      }
+    }
+
+    for (const insps of exportPorFundo.values()) {
+      const fundoNombre = insps[0]?.fundo?.nombre ?? 'Sin fundo';
+      this.buildDailyPivotSheet(workbook, fundoNombre, insps, tiposDefecto, query.fecha);
+    }
+
+    if (descartes.length > 0) {
+      this.buildDescartePivotSheet(workbook, descartes, tiposDefecto, query.fecha);
+    }
+
+    if (workbook.worksheets.length === 0) {
+      const empty = workbook.addWorksheet('Sin datos');
+      empty.getCell('A1').value = `Sin inspecciones para ${this.formatDate(query.fecha)}`;
+      empty.getCell('A1').font = { italic: true, color: { argb: 'FF6B7280' } };
+      empty.getColumn(1).width = 60;
+    }
+
+    const arrayBuffer = await workbook.xlsx.writeBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const filename = `paltas2026_reporte_diario_${this.formatDateIso(query.fecha)}.xlsx`;
+    return { buffer, filename };
+  }
+
+  private buildDailyPivotSheet(
+    workbook: ExcelJS.Workbook,
+    fundoNombre: string,
+    inspecciones: Awaited<ReturnType<typeof this.fetchInspeccionesDia>>,
+    tiposDefecto: Array<{ id: string; nombre: string; familia: FamiliaDefecto; orden: number }>,
+    fecha: Date,
+  ): void {
+    const sheetName = `Exportación ${fundoNombre}`.slice(0, 31);
+    const sheet = workbook.addWorksheet(sheetName);
+
+    const numMuestras = inspecciones.length;
+    const lastCol = 1 + numMuestras;
+
+    // Encabezado: PLANILLA + FUNDO + FECHA
+    sheet.getCell(1, 1).value = 'PLANILLA DE INSPECCION PALTA PACKING';
+    sheet.mergeCells(1, 1, 1, lastCol);
+    sheet.getRow(1).font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } };
+    sheet.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    sheet.getRow(1).height = 24;
+
+    sheet.getCell(2, 1).value = 'FUNDO';
+    sheet.getCell(2, 1).font = { bold: true };
+    sheet.getCell(2, 2).value = fundoNombre;
+    sheet.getCell(3, 1).value = 'FECHA';
+    sheet.getCell(3, 1).font = { bold: true };
+    sheet.getCell(3, 2).value = this.formatDate(fecha);
+
+    let row = 5;
+
+    // Header de muestras
+    const headerRow = sheet.getRow(row);
+    headerRow.getCell(1).value = 'ATRIBUTO';
+    inspecciones.forEach((insp, idx) => {
+      headerRow.getCell(2 + idx).value = `M${insp.numeroMuestra ?? idx + 1}`;
+    });
+    headerRow.font = { bold: true, color: { argb: HEADER_FONT } };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } };
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+    headerRow.eachCell((cell) => this.applyThinBorder(cell));
+    row++;
+
+    const attrRow = (
+      label: string,
+      getter: (i: (typeof inspecciones)[number]) => string | number | null,
+      opts: { bold?: boolean; bg?: string } = {},
+    ) => {
+      const r = sheet.getRow(row);
+      r.getCell(1).value = label;
+      r.getCell(1).font = { bold: true };
+      inspecciones.forEach((insp, idx) => {
+        const v = getter(insp);
+        r.getCell(2 + idx).value = v === null ? '—' : v;
+        r.getCell(2 + idx).alignment = { horizontal: 'center' };
+      });
+      if (opts.bold) r.font = { bold: true };
+      if (opts.bg) {
+        r.eachCell({ includeEmpty: false }, (cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.bg! } };
+        });
+      }
+      r.eachCell({ includeEmpty: false }, (cell) => this.applyThinBorder(cell));
+      row++;
+    };
+
+    attrRow('VARIEDAD', (i) => i.variedad?.nombre ?? '—');
+    attrRow('EMBALAJE', (i) => i.tipoEmbalaje?.codigo ?? '—');
+    attrRow('ETIQUETA', (i) =>
+      i.tipoEmbalaje
+        ? `${i.tipoEmbalaje.marca} - ${Number(i.tipoEmbalaje.pesoKg).toFixed(1)} kg`
+        : '—',
+    );
+    attrRow('CLIENTE', (i) => i.cliente?.nombre ?? '—');
+    attrRow('DESTINO', (i) => i.destino?.nombre ?? '—');
+    attrRow('CATEGORIA', (i) => i.categoria ?? '—');
+    attrRow('PLU', (i) => (i.plu === null ? '—' : i.plu ? 'SI' : 'NO'));
+    attrRow('CALIBRE', (i) => i.calibre?.replace('C', '') ?? '—');
+    attrRow('CONTEO', (i) => i.conteoMuestra ?? '—');
+    attrRow('FRUTOS BUENOS', (i) => i.frutosBuenos ?? '—');
+    attrRow('CALIDAD EMBALAJE', (i) => i.calidadEmbalaje ?? '—');
+    attrRow('ROTULACION', (i) => i.rotulacion ?? '—');
+    attrRow('PALETIZAJE', (i) => i.paletizaje ?? '—');
+
+    // Separador + sección CALIDAD
+    row++;
+    sheet.getCell(row, 1).value = 'DEFECTOS DE CALIDAD';
+    sheet.mergeCells(row, 1, row, lastCol);
+    sheet.getRow(row).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(row).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E40AF' },
+    };
+    sheet.getRow(row).alignment = { horizontal: 'center' };
+    row++;
+
+    const tiposCalidad = tiposDefecto.filter((t) => t.familia === FamiliaDefecto.CALIDAD);
+    for (const tipo of tiposCalidad) {
+      const aparece = inspecciones.some((i) =>
+        i.defectos.some((d) => d.tipoDefectoId === tipo.id),
+      );
+      if (!aparece) continue;
+      attrRow(tipo.nombre.toUpperCase(), (i) => {
+        const d = i.defectos.find((x) => x.tipoDefectoId === tipo.id);
+        return d ? Number(d.porcentajeCalculado) : '';
+      });
+    }
+    attrRow(
+      'Σ CALIDAD',
+      (i) => (i.sumatoriaCalidad === null ? '' : Number(i.sumatoriaCalidad)),
+      { bg: TOTAL_FILL },
+    );
+    attrRow('NOTA CALIDAD', (i) => i.notaCalidad ?? '—', { bg: TOTAL_FILL });
+
+    // Sección CONDICIÓN
+    row++;
+    sheet.getCell(row, 1).value = 'DEFECTOS DE CONDICIÓN';
+    sheet.mergeCells(row, 1, row, lastCol);
+    sheet.getRow(row).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(row).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E40AF' },
+    };
+    sheet.getRow(row).alignment = { horizontal: 'center' };
+    row++;
+
+    const tiposCondicion = tiposDefecto.filter((t) => t.familia === FamiliaDefecto.CONDICION);
+    for (const tipo of tiposCondicion) {
+      const aparece = inspecciones.some((i) =>
+        i.defectos.some((d) => d.tipoDefectoId === tipo.id),
+      );
+      if (!aparece) continue;
+      attrRow(tipo.nombre.toUpperCase(), (i) => {
+        const d = i.defectos.find((x) => x.tipoDefectoId === tipo.id);
+        return d ? Number(d.porcentajeCalculado) : '';
+      });
+    }
+    attrRow(
+      'Σ CONDICIÓN',
+      (i) => (i.sumatoriaCondicion === null ? '' : Number(i.sumatoriaCondicion)),
+      { bg: TOTAL_FILL },
+    );
+    attrRow('NOTA CONDICIÓN', (i) => i.notaCondicion ?? '—', { bg: TOTAL_FILL });
+
+    // Resultado final
+    row++;
+    attrRow('NOTA FINAL', (i) => i.notaFinal ?? '—', { bg: 'FFFEF3C7' });
+    // Resultado coloreado per-celda según el valor
+    const resultadoRow = sheet.getRow(row);
+    resultadoRow.getCell(1).value = 'RESULTADO';
+    resultadoRow.getCell(1).font = { bold: true };
+    inspecciones.forEach((insp, idx) => {
+      const cell = resultadoRow.getCell(2 + idx);
+      cell.value = insp.resultadoFinal ?? '—';
+      cell.font = { bold: true };
+      cell.alignment = { horizontal: 'center' };
+      let bg: string | null = null;
+      if (insp.resultadoFinal === 'BUENO') bg = 'FFD1FAE5';
+      else if (insp.resultadoFinal === 'ACEPTABLE') bg = 'FFFEF3C7';
+      else if (insp.resultadoFinal === 'RECHAZO') bg = 'FFFECACA';
+      if (bg) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      }
+      this.applyThinBorder(cell);
+    });
+    this.applyThinBorder(resultadoRow.getCell(1));
+
+    // Anchos
+    sheet.getColumn(1).width = 24;
+    for (let i = 2; i <= lastCol; i++) {
+      sheet.getColumn(i).width = 16;
+    }
+    sheet.views = [{ state: 'frozen', xSplit: 1, ySplit: 5 }];
+  }
+
+  /**
+   * Hoja Descarte pivot: columnas = fundos del día, filas = FRUTA BUENA +
+   * defectos. Replica el layout de la hoja "Descarte" del Excel del cliente.
+   */
+  private buildDescartePivotSheet(
+    workbook: ExcelJS.Workbook,
+    descartes: Awaited<ReturnType<typeof this.fetchInspeccionesDia>>,
+    tiposDefecto: Array<{ id: string; nombre: string; familia: FamiliaDefecto; orden: number }>,
+    fecha: Date,
+  ): void {
+    const sheet = workbook.addWorksheet('Descarte');
+
+    // Agrupar descartes por fundo: cada fundo es una columna.
+    // Si hay más de 1 descarte por fundo, promediamos los % por defecto.
+    const porFundo = new Map<
+      string,
+      { nombre: string; inspecciones: typeof descartes }
+    >();
+    for (const d of descartes) {
+      if (!d.fundo) continue;
+      const key = d.fundo.id;
+      const g = porFundo.get(key) ?? { nombre: d.fundo.nombre, inspecciones: [] };
+      g.inspecciones.push(d);
+      porFundo.set(key, g);
+    }
+    const fundos = Array.from(porFundo.values());
+    if (fundos.length === 0) return;
+
+    const numCols = 1 + fundos.length; // primera col = etiqueta de defecto
+
+    // Encabezado
+    sheet.getCell(1, 1).value = 'EVALUACIONES DE FRUTA DESCARTE';
+    sheet.mergeCells(1, 1, 1, numCols);
+    sheet.getRow(1).font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } };
+    sheet.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    sheet.getRow(1).height = 24;
+
+    sheet.getCell(2, 1).value = 'FECHA';
+    sheet.getCell(2, 1).font = { bold: true };
+    sheet.getCell(2, 2).value = this.formatDate(fecha);
+
+    let row = 4;
+
+    // Header: DEFECTOS | <fundo1> | <fundo2> | ...
+    const hdr = sheet.getRow(row);
+    hdr.getCell(1).value = 'DEFECTOS';
+    fundos.forEach((f, idx) => {
+      hdr.getCell(2 + idx).value = f.nombre;
+    });
+    hdr.font = { bold: true, color: { argb: HEADER_FONT } };
+    hdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } };
+    hdr.alignment = { horizontal: 'center', vertical: 'middle' };
+    hdr.eachCell((c) => this.applyThinBorder(c));
+    row++;
+
+    const sumarPctPorTipoEnFundo = (
+      tipoId: string,
+      grupoFundo: { inspecciones: typeof descartes },
+    ): number | null => {
+      let suma = 0;
+      let count = 0;
+      for (const insp of grupoFundo.inspecciones) {
+        const d = insp.defectos.find((x) => x.tipoDefectoId === tipoId);
+        if (d) {
+          suma += Number(d.porcentajeCalculado);
+          count++;
+        }
+      }
+      // Si el defecto NO aparece en ninguna inspección de ese fundo → null
+      if (count === 0) return null;
+      return suma / grupoFundo.inspecciones.length;
+    };
+
+    const pctFrutaBuenaPorFundo = (grupoFundo: {
+      inspecciones: typeof descartes;
+    }): number => {
+      const total = grupoFundo.inspecciones.reduce((acc, insp) => {
+        const conteo = insp.conteoMuestra ?? 0;
+        const buenos = insp.frutosBuenos ?? 0;
+        return acc + (conteo > 0 ? (buenos * 100) / conteo : 0);
+      }, 0);
+      return grupoFundo.inspecciones.length > 0
+        ? total / grupoFundo.inspecciones.length
+        : 0;
+    };
+
+    // Fila FRUTA BUENA
+    const fbRow = sheet.getRow(row);
+    fbRow.getCell(1).value = 'FRUTA BUENA';
+    fbRow.getCell(1).font = { bold: true };
+    fundos.forEach((f, idx) => {
+      fbRow.getCell(2 + idx).value = pctFrutaBuenaPorFundo(f);
+      fbRow.getCell(2 + idx).numFmt = '0.0"%"';
+      fbRow.getCell(2 + idx).alignment = { horizontal: 'center' };
+    });
+    fbRow.eachCell({ includeEmpty: false }, (c) => this.applyThinBorder(c));
+    fbRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+    fbRow.font = { bold: true };
+    row++;
+
+    // Sección CALIDAD
+    sheet.getCell(row, 1).value = 'DEFECTOS DE CALIDAD';
+    sheet.mergeCells(row, 1, row, numCols);
+    sheet.getRow(row).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(row).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E40AF' },
+    };
+    sheet.getRow(row).alignment = { horizontal: 'center' };
+    row++;
+
+    for (const tipo of tiposDefecto.filter((t) => t.familia === FamiliaDefecto.CALIDAD)) {
+      const valores = fundos.map((f) => sumarPctPorTipoEnFundo(tipo.id, f));
+      if (valores.every((v) => v === null)) continue;
+      const r = sheet.getRow(row);
+      r.getCell(1).value = tipo.nombre.toUpperCase();
+      r.getCell(1).font = { bold: true };
+      valores.forEach((v, idx) => {
+        if (v === null) {
+          r.getCell(2 + idx).value = '-';
+        } else {
+          r.getCell(2 + idx).value = v;
+          r.getCell(2 + idx).numFmt = '0.0"%"';
+        }
+        r.getCell(2 + idx).alignment = { horizontal: 'center' };
+      });
+      r.eachCell({ includeEmpty: false }, (c) => this.applyThinBorder(c));
+      row++;
+    }
+
+    // Sección CONDICIÓN
+    sheet.getCell(row, 1).value = 'DEFECTOS DE CONDICIÓN';
+    sheet.mergeCells(row, 1, row, numCols);
+    sheet.getRow(row).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(row).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E40AF' },
+    };
+    sheet.getRow(row).alignment = { horizontal: 'center' };
+    row++;
+
+    for (const tipo of tiposDefecto.filter((t) => t.familia === FamiliaDefecto.CONDICION)) {
+      const valores = fundos.map((f) => sumarPctPorTipoEnFundo(tipo.id, f));
+      if (valores.every((v) => v === null)) continue;
+      const r = sheet.getRow(row);
+      r.getCell(1).value = tipo.nombre.toUpperCase();
+      r.getCell(1).font = { bold: true };
+      valores.forEach((v, idx) => {
+        if (v === null) {
+          r.getCell(2 + idx).value = '-';
+        } else {
+          r.getCell(2 + idx).value = v;
+          r.getCell(2 + idx).numFmt = '0.0"%"';
+        }
+        r.getCell(2 + idx).alignment = { horizontal: 'center' };
+      });
+      r.eachCell({ includeEmpty: false }, (c) => this.applyThinBorder(c));
+      row++;
+    }
+
+    // Anchos
+    sheet.getColumn(1).width = 24;
+    for (let i = 2; i <= numCols; i++) {
+      sheet.getColumn(i).width = 14;
+    }
+  }
+
+  private applyThinBorder(cell: ExcelJS.Cell): void {
+    cell.border = {
+      top: { style: 'thin' },
+      bottom: { style: 'thin' },
+      left: { style: 'thin' },
+      right: { style: 'thin' },
+    };
   }
 
   private buildAggregateSheet(
