@@ -141,6 +141,7 @@ function baseInput(overrides: Partial<CreateInspeccionInput> = {}): CreateInspec
     fundoId: FUNDO_ID,
     variedadId: VARIEDAD_ID,
     conteoMuestra: 100,
+    frutosBuenos: 98, // 100 - 2 (la suma debe cuadrar)
     categoria: Categoria.CAT1,
     calibre: Calibre.C18,
     plu: false,
@@ -227,6 +228,7 @@ describe('InspeccionesService', () => {
       return {
         id: INSPECCION_ID,
         conteoMuestra: 100,
+        frutosBuenos: 98,
         deletedAt: null,
         inspectorId: INSPECTOR_OWNER_ID,
         defectos: [
@@ -252,7 +254,7 @@ describe('InspeccionesService', () => {
       await expect(service.update(INSPECCION_ID, { conteoMuestra: 200 }, ADMIN_USER)).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('cuando solo cambia conteoMuestra, recalcula porcentajes de defectos existentes', async () => {
+    it('cuando cambia conteoMuestra (y frutosBuenos cuadrando), recalcula porcentajes', async () => {
       prisma.inspeccion.findUnique.mockResolvedValue(existingInspeccion({ conteoMuestra: 100 }));
       prisma.reglaCalificacion.findMany.mockResolvedValue(buildReglas());
       prisma.matrizCalificacionFinal.findMany.mockResolvedValue(buildMatriz());
@@ -260,12 +262,24 @@ describe('InspeccionesService', () => {
       const tx = prisma.__tx as MockTx;
       tx.inspeccion.update.mockResolvedValue({ id: INSPECCION_ID });
 
-      await service.update(INSPECCION_ID, { conteoMuestra: 200 }, ADMIN_USER);
+      // conteoMuestra 200, frutosBuenos 198, defectos sigue siendo 2 → 198 + 2 = 200 ✓
+      await service.update(
+        INSPECCION_ID,
+        { conteoMuestra: 200, frutosBuenos: 198 },
+        ADMIN_USER,
+      );
 
       expect(tx.inspeccionDefecto.updateMany).toHaveBeenCalledWith({
         where: { inspeccionId: INSPECCION_ID, tipoDefectoId: TIPO_DEFECTO_CALIDAD_ID },
         data: { porcentajeCalculado: new Prisma.Decimal('1.000') }, // 2 / 200 * 100 = 1.000
       });
+    });
+
+    it('rebota si la suma frutosBuenos + defectos no es igual al conteo', async () => {
+      prisma.inspeccion.findUnique.mockResolvedValue(existingInspeccion());
+      await expect(
+        service.update(INSPECCION_ID, { conteoMuestra: 200 }, ADMIN_USER),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('si los defectos existentes superan el nuevo conteo, rebota antes de tocar DB', async () => {
@@ -294,7 +308,11 @@ describe('InspeccionesService', () => {
       tx.inspeccion.update.mockResolvedValue({ id: INSPECCION_ID });
 
       await expect(
-        service.update(INSPECCION_ID, { conteoMuestra: 200 }, INSPECTOR_OWNER_USER),
+        service.update(
+          INSPECCION_ID,
+          { conteoMuestra: 200, frutosBuenos: 198 },
+          INSPECTOR_OWNER_USER,
+        ),
       ).resolves.toBeDefined();
     });
 

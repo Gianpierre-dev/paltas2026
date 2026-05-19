@@ -32,6 +32,7 @@ interface InspeccionResumenItem {
   calibre: Calibre | null;
   plu: boolean | null;
   conteoMuestra: number | null;
+  frutosBuenos: number | null;
   calidadEmbalaje: EvaluacionFisica | null;
   rotulacion: EvaluacionFisica | null;
   paletizaje: EvaluacionFisica | null;

@@ -112,6 +112,7 @@ export class InspeccionesService {
           plu: input.plu,
           calibre: input.calibre,
           conteoMuestra: input.conteoMuestra,
+          frutosBuenos: input.frutosBuenos,
           calidadEmbalaje: input.calidadEmbalaje,
           rotulacion: input.rotulacion,
           paletizaje: input.paletizaje,
@@ -236,6 +237,37 @@ export class InspeccionesService {
       }));
     }
 
+    // 4.5) Validar suma exacta: frutosBuenos + Σ defectos = conteoMuestra (efectivos).
+    // Si NO se tocaron ni defectos ni conteo ni frutosBuenos, no re-validamos —
+    // la inspección original ya pasó por esta regla cuando fue creada.
+    const algoCambioEnSuma =
+      input.defectos !== undefined ||
+      input.conteoMuestra !== undefined ||
+      input.frutosBuenos !== undefined;
+    if (algoCambioEnSuma) {
+      const efectivoFrutosBuenos = input.frutosBuenos ?? existing.frutosBuenos;
+      const efectivosDefectos = defectosConPorcentaje ?? existing.defectos;
+      const sumaDefectos = efectivosDefectos.reduce(
+        (acc, d) => acc + d.cantidadFrutos,
+        0,
+      );
+      if (efectivoFrutosBuenos === null) {
+        throw new BadRequestException(
+          'frutosBuenos no puede ser nulo al editar (regla: frutosBuenos + Σ defectos = conteoMuestra)',
+        );
+      }
+      if (efectivoConteo === null) {
+        throw new BadRequestException('conteoMuestra no puede ser nulo al editar');
+      }
+      const totalCargado = efectivoFrutosBuenos + sumaDefectos;
+      if (totalCargado !== efectivoConteo) {
+        throw new BadRequestException(
+          `La suma (frutosBuenos=${efectivoFrutosBuenos} + defectos=${sumaDefectos} = ${totalCargado}) ` +
+            `debe ser igual al conteo total (${efectivoConteo}). Diferencia: ${totalCargado - efectivoConteo}`,
+        );
+      }
+    }
+
     // 5) Si toca recalcular: sumatorias + notas + matriz
     let recalcData: {
       sumatoriaCalidad: Prisma.Decimal;
@@ -303,6 +335,7 @@ export class InspeccionesService {
     if (input.plu !== undefined) data.plu = input.plu;
     if (input.calibre !== undefined) data.calibre = input.calibre;
     if (input.conteoMuestra !== undefined) data.conteoMuestra = input.conteoMuestra;
+    if (input.frutosBuenos !== undefined) data.frutosBuenos = input.frutosBuenos;
     if (input.calidadEmbalaje !== undefined) data.calidadEmbalaje = input.calidadEmbalaje;
     if (input.rotulacion !== undefined) data.rotulacion = input.rotulacion;
     if (input.paletizaje !== undefined) data.paletizaje = input.paletizaje;

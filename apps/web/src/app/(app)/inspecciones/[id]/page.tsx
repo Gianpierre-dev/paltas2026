@@ -22,6 +22,7 @@ interface InspeccionDetalle {
   calibre: Calibre | null;
   plu: boolean | null;
   conteoMuestra: number | null;
+  frutosBuenos: number | null;
   calidadEmbalaje: EvaluacionFisica | null;
   rotulacion: EvaluacionFisica | null;
   paletizaje: EvaluacionFisica | null;
@@ -131,6 +132,7 @@ export default async function DetalleInspeccionPage({
       {/* Embalaje */}
       <Card title="Embalaje">
         <KV label="Conteo total" value={data.conteoMuestra?.toString()} />
+        <KV label="Frutos buenos" value={data.frutosBuenos?.toString()} />
         <KV label="Calibre" value={data.calibre?.replace('C', '')} />
         <KV label="Calidad embalaje" value={data.calidadEmbalaje} />
         <KV label="Rotulación" value={data.rotulacion} />

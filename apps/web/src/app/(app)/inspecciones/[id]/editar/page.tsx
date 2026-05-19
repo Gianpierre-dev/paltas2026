@@ -25,6 +25,7 @@ interface InspeccionRaw {
   plu: boolean | null;
   calibre: Calibre | null;
   conteoMuestra: number | null;
+  frutosBuenos: number | null;
   calidadEmbalaje: EvaluacionFisica | null;
   rotulacion: EvaluacionFisica | null;
   paletizaje: EvaluacionFisica | null;
@@ -97,6 +98,7 @@ export default async function EditarInspeccionPage({
     calidadEmbalaje: raw.calidadEmbalaje,
     rotulacion: raw.rotulacion,
     paletizaje: raw.paletizaje,
+    frutosBuenos: raw.frutosBuenos,
     cantidadPorDefecto,
   };
 

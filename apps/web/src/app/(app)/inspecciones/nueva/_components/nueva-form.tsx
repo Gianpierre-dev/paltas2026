@@ -48,6 +48,7 @@ const FormSchema = z
     ]).optional().or(z.literal('').transform(() => undefined)),
 
     conteoMuestra: z.coerce.number().int().positive('Conteo debe ser mayor a 0'),
+    frutosBuenos: z.coerce.number({ invalid_type_error: 'Requerido' }).int().nonnegative('No puede ser negativo'),
 
     calidadEmbalaje: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
     rotulacion: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
@@ -57,6 +58,7 @@ const FormSchema = z
   })
   .superRefine((data, ctx) => {
     const total = data.conteoMuestra;
+    // Validación per-defecto: ninguno > conteoMuestra
     for (const [tipoDefectoId, cantidad] of Object.entries(data.cantidadPorDefecto ?? {})) {
       if (cantidad !== undefined && cantidad > total) {
         ctx.addIssue({
@@ -65,6 +67,23 @@ const FormSchema = z
           message: `Máx. ${total} (conteo total)`,
         });
       }
+    }
+    // Validación global: frutosBuenos + Σ defectos = conteoMuestra (exacto)
+    const sumaDefectos = Object.values(data.cantidadPorDefecto ?? {}).reduce(
+      (acc: number, v) => acc + (v ?? 0),
+      0,
+    );
+    const totalCargado = data.frutosBuenos + sumaDefectos;
+    if (totalCargado !== total) {
+      const diff = totalCargado - total;
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['frutosBuenos'],
+        message:
+          diff > 0
+            ? `Sobran ${diff} (suma da ${totalCargado}, conteo es ${total})`
+            : `Faltan ${-diff} (suma da ${totalCargado}, conteo es ${total})`,
+      });
     }
   });
 
@@ -99,11 +118,29 @@ export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm
     },
   });
 
-  // Para el atributo HTML `max` y feedback visual: leemos el valor live de conteoMuestra.
+  // Para el atributo HTML `max` y feedback visual: leemos valores live.
   const conteoMuestraLive = watch('conteoMuestra');
+  const frutosBuenosLive = watch('frutosBuenos');
+  const cantidadesLive = watch('cantidadPorDefecto') ?? {};
+
   const conteoMax = typeof conteoMuestraLive === 'number' && conteoMuestraLive > 0
     ? conteoMuestraLive
     : undefined;
+
+  // Indicador en vivo de la suma frutosBuenos + Σ defectos vs conteoMuestra.
+  const sumaDefectosLive = Object.values(cantidadesLive).reduce<number>(
+    (acc, v) => acc + (typeof v === 'number' ? v : Number(v) || 0),
+    0,
+  );
+  const buenosNum = typeof frutosBuenosLive === 'number'
+    ? frutosBuenosLive
+    : Number(frutosBuenosLive) || 0;
+  const conteoNum = typeof conteoMuestraLive === 'number'
+    ? conteoMuestraLive
+    : Number(conteoMuestraLive) || 0;
+  // Frutos con defecto esperados (derivado, no se tipea).
+  const conDefectoEsperado = conteoNum > 0 ? conteoNum - buenosNum : 0;
+  const sumaCuadra = conteoNum > 0 && sumaDefectosLive === conDefectoEsperado;
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
@@ -129,6 +166,7 @@ export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm
       plu: values.plu,
       calibre: values.calibre,
       conteoMuestra: values.conteoMuestra,
+      frutosBuenos: values.frutosBuenos,
       calidadEmbalaje: values.calidadEmbalaje,
       rotulacion: values.rotulacion,
       paletizaje: values.paletizaje,
@@ -248,10 +286,7 @@ export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm
         />
 
         <FieldCheckbox label="PLU" {...register('plu')} />
-      </Section>
 
-      {/* SECCION 2: EMBALAJE */}
-      <Section title="2. Embalaje">
         <FieldInput
           label="Total frutos / Conteo *"
           type="number"
@@ -260,6 +295,25 @@ export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm
           error={errors.conteoMuestra?.message}
         />
 
+        <FieldInput
+          label="Frutos buenos *"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={conteoMax}
+          {...register('frutosBuenos')}
+          error={errors.frutosBuenos?.message}
+        />
+
+        <FieldRow label="Con defecto">
+          <div className="h-10 px-3 flex items-center text-base font-semibold text-zinc-800 bg-zinc-100 rounded-md border border-zinc-200">
+            {conteoNum > 0 ? conDefectoEsperado : '—'}
+          </div>
+        </FieldRow>
+      </Section>
+
+      {/* SECCION 2: EMBALAJE */}
+      <Section title="2. Embalaje">
         <FieldSelect
           label="Calibre"
           {...register('calibre')}
@@ -299,6 +353,25 @@ export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm
           Ingresá la <strong>cantidad de frutos</strong> con cada defecto. El % se calcula
           automáticamente sobre el conteo total. Dejá vacío si no aplica.
         </p>
+
+        {conteoNum > 0 && (
+          <div
+            className={`text-xs px-3 py-2 rounded-md mb-3 font-medium ${
+              sumaCuadra
+                ? 'bg-green-50 text-green-800 border border-green-200'
+                : 'bg-amber-50 text-amber-800 border border-amber-200'
+            }`}
+          >
+            Repartidos: {sumaDefectosLive} / {conDefectoEsperado}
+            {!sumaCuadra && (
+              <span className="ml-1">
+                ({sumaDefectosLive < conDefectoEsperado
+                  ? `faltan ${conDefectoEsperado - sumaDefectosLive}`
+                  : `sobran ${sumaDefectosLive - conDefectoEsperado}`})
+              </span>
+            )}
+          </div>
+        )}
 
         <h4 className="text-sm font-medium text-zinc-700 mt-2 mb-1">
           Defectos de CALIDAD

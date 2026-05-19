@@ -269,6 +269,10 @@ model Inspeccion {
   // Conteo total de frutos de la muestra
   conteoMuestra Int? @map("conteo_muestra")
 
+  // Frutos sin defectos. Regla: frutosBuenos + Σ defectos = conteoMuestra.
+  // Validada en el service al crear/actualizar.
+  frutosBuenos Int? @map("frutos_buenos")
+
   // Evaluaciones físicas (solo en EXPORTACION)
   calidadEmbalaje EvaluacionFisica? @map("calidad_embalaje")
   rotulacion      EvaluacionFisica?

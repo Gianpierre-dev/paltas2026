@@ -48,30 +48,45 @@ export const DefectoInputSchema = z.object({
 });
 export type DefectoInput = z.infer<typeof DefectoInputSchema>;
 
-export const CreateInspeccionInputSchema = z.object({
-  tipo: z.enum(TIPO_INSPECCION_VALUES),
-  fecha: z.coerce.date(),
-  numeroMuestra: z.number().int().positive().optional(),
+export const CreateInspeccionInputSchema = z
+  .object({
+    tipo: z.enum(TIPO_INSPECCION_VALUES),
+    fecha: z.coerce.date(),
+    numeroMuestra: z.number().int().positive().optional(),
 
-  fundoId: z.string().uuid(),
-  variedadId: z.string().uuid(),
+    fundoId: z.string().uuid(),
+    variedadId: z.string().uuid(),
 
-  // Campos específicos de EXPORTACION (opcionales)
-  tipoEmbalajeId: z.string().uuid().optional(),
-  clienteId: z.string().uuid().optional(),
-  destinoId: z.string().uuid().optional(),
-  categoria: z.enum(CATEGORIA_VALUES).optional(),
-  plu: z.boolean().optional(),
-  calibre: z.enum(CALIBRE_VALUES).optional(),
+    // Campos específicos de EXPORTACION (opcionales)
+    tipoEmbalajeId: z.string().uuid().optional(),
+    clienteId: z.string().uuid().optional(),
+    destinoId: z.string().uuid().optional(),
+    categoria: z.enum(CATEGORIA_VALUES).optional(),
+    plu: z.boolean().optional(),
+    calibre: z.enum(CALIBRE_VALUES).optional(),
 
-  conteoMuestra: z.number().int().positive('Conteo debe ser mayor a 0'),
+    conteoMuestra: z.number().int().positive('Conteo debe ser mayor a 0'),
 
-  calidadEmbalaje: z.enum(EVALUACION_FISICA_VALUES).optional(),
-  rotulacion: z.enum(EVALUACION_FISICA_VALUES).optional(),
-  paletizaje: z.enum(EVALUACION_FISICA_VALUES).optional(),
+    // Frutos sin defectos. Regla: frutosBuenos + Σ defectos = conteoMuestra.
+    frutosBuenos: z.number().int().nonnegative(),
 
-  defectos: z.array(DefectoInputSchema).default([]),
-});
+    calidadEmbalaje: z.enum(EVALUACION_FISICA_VALUES).optional(),
+    rotulacion: z.enum(EVALUACION_FISICA_VALUES).optional(),
+    paletizaje: z.enum(EVALUACION_FISICA_VALUES).optional(),
+
+    defectos: z.array(DefectoInputSchema).default([]),
+  })
+  .superRefine((data, ctx) => {
+    const sumaDefectos = data.defectos.reduce((acc, d) => acc + d.cantidadFrutos, 0);
+    const total = data.frutosBuenos + sumaDefectos;
+    if (total !== data.conteoMuestra) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['frutosBuenos'],
+        message: `La suma (${total}) debe ser igual al conteo total (${data.conteoMuestra}). Diferencia: ${total - data.conteoMuestra}`,
+      });
+    }
+  });
 export type CreateInspeccionInput = z.infer<typeof CreateInspeccionInputSchema>;
 
 // Update: TODOS los campos opcionales, pero si llega `defectos` reemplaza la lista entera.
@@ -92,6 +107,7 @@ export const UpdateInspeccionInputSchema = z.object({
   calibre: z.enum(CALIBRE_VALUES).optional().nullable(),
 
   conteoMuestra: z.number().int().positive().optional(),
+  frutosBuenos: z.number().int().nonnegative().optional(),
 
   calidadEmbalaje: z.enum(EVALUACION_FISICA_VALUES).optional().nullable(),
   rotulacion: z.enum(EVALUACION_FISICA_VALUES).optional().nullable(),
