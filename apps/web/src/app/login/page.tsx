@@ -7,6 +7,12 @@ import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { FieldRow } from '@/components/forms/field-row';
 
+// Evita que Next prerenderice /login estáticamente. Sin esto, Railway Edge
+// servía esta página con Cache-Control: s-maxage=31536000 (1 año). Si un deploy
+// anterior emitió HTML con un bug, el edge sigue sirviendo esa versión y los
+// usuarios afectados quedan en redirect loop hasta que se purga el cache.
+export const dynamic = 'force-dynamic';
+
 // useSearchParams() requiere Suspense para que Next pueda prerender la página.
 // El form vive adentro; el wrapper exterior provee el boundary.
 export default function LoginPage() {
