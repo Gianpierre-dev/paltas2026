@@ -133,6 +133,14 @@ export default async function DetalleInspeccionPage({
       <Card title="Embalaje">
         <KV label="Conteo total" value={data.conteoMuestra?.toString()} />
         <KV label="Frutos buenos" value={data.frutosBuenos?.toString()} />
+        <KV
+          label="Con defecto"
+          value={
+            data.conteoMuestra != null && data.frutosBuenos != null
+              ? String(data.conteoMuestra - data.frutosBuenos)
+              : null
+          }
+        />
         <KV label="Calibre" value={data.calibre?.replace('C', '')} />
         <KV label="Calidad embalaje" value={data.calidadEmbalaje} />
         <KV label="Rotulación" value={data.rotulacion} />

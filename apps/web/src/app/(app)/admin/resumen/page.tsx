@@ -194,6 +194,19 @@ function PivotTable({ data }: { data: ResumenResponse }) {
             <Row label="Paletizaje">
               {inspecciones.map((i) => i.paletizaje ?? '—')}
             </Row>
+            <Row label="Conteo">
+              {inspecciones.map((i) => i.conteoMuestra?.toString() ?? '—')}
+            </Row>
+            <Row label="Frutos buenos">
+              {inspecciones.map((i) => i.frutosBuenos?.toString() ?? '—')}
+            </Row>
+            <Row label="Con defecto">
+              {inspecciones.map((i) =>
+                i.conteoMuestra != null && i.frutosBuenos != null
+                  ? (i.conteoMuestra - i.frutosBuenos).toString()
+                  : '—',
+              )}
+            </Row>
 
             <SectionDivider label="Defectos de calidad" colSpan={inspecciones.length + 1} />
             {tiposCalidad.map((td) => (
