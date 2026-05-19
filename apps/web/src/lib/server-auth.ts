@@ -72,8 +72,10 @@ export function setAuthCookies(response: NextResponse, tokens: Pick<LoginRespons
     httpOnly: true,
     secure: IS_PROD,
     sameSite: 'lax',
-    // Acotado: solo viaja al BFF de auth. Reduce superficie de exposición.
-    path: '/api/auth',
+    // path '/' (no acotado) porque proxy.ts la chequea en cada navegación
+    // para saber si hay sesión activa. La defensa real está en httpOnly +
+    // rotación stateful con detección de reuso (auth.service.ts).
+    path: '/',
     maxAge: REFRESH_MAX_AGE_SECONDS,
   });
 }
@@ -90,7 +92,7 @@ export function clearAuthCookies(response: NextResponse): void {
     httpOnly: true,
     secure: IS_PROD,
     sameSite: 'lax',
-    path: '/api/auth',
+    path: '/',
     maxAge: 0,
   });
 }
