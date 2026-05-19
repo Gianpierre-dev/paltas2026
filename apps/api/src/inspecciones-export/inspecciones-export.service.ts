@@ -123,6 +123,7 @@ export class InspeccionesExportService {
       { header: 'Calibre', key: 'calibre', width: 8 },
       { header: 'Conteo', key: 'conteoMuestra', width: 8 },
       { header: 'Buenos', key: 'frutosBuenos', width: 8 },
+      { header: 'Con defecto', key: 'conDefecto', width: 12 },
       { header: '% Calidad', key: 'pctCalidad', width: 10 },
       { header: '% Condición', key: 'pctCondicion', width: 11 },
       { header: 'Nota Calidad', key: 'notaCalidad', width: 12 },
@@ -147,6 +148,10 @@ export class InspeccionesExportService {
         calibre: i.calibre?.replace('C', '') ?? '—',
         conteoMuestra: i.conteoMuestra,
         frutosBuenos: i.frutosBuenos,
+        conDefecto:
+          i.conteoMuestra != null && i.frutosBuenos != null
+            ? i.conteoMuestra - i.frutosBuenos
+            : null,
         pctCalidad: i.sumatoriaCalidad ? Number(i.sumatoriaCalidad) : null,
         pctCondicion: i.sumatoriaCondicion ? Number(i.sumatoriaCondicion) : null,
         notaCalidad: i.notaCalidad,
@@ -306,6 +311,11 @@ export class InspeccionesExportService {
     attrRow('CALIBRE', (i) => i.calibre?.replace('C', '') ?? '—');
     attrRow('CONTEO', (i) => i.conteoMuestra ?? '—');
     attrRow('FRUTOS BUENOS', (i) => i.frutosBuenos ?? '—');
+    attrRow('CON DEFECTO', (i) =>
+      i.conteoMuestra != null && i.frutosBuenos != null
+        ? i.conteoMuestra - i.frutosBuenos
+        : '—',
+    );
     attrRow('CALIDAD EMBALAJE', (i) => i.calidadEmbalaje ?? '—');
     attrRow('ROTULACION', (i) => i.rotulacion ?? '—');
     attrRow('PALETIZAJE', (i) => i.paletizaje ?? '—');
@@ -498,6 +508,20 @@ export class InspeccionesExportService {
     fbRow.eachCell({ includeEmpty: false }, (c) => this.applyThinBorder(c));
     fbRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
     fbRow.font = { bold: true };
+    row++;
+
+    // Fila CON DEFECTO = 100% - %FRUTA BUENA
+    const cdRow = sheet.getRow(row);
+    cdRow.getCell(1).value = 'CON DEFECTO';
+    cdRow.getCell(1).font = { bold: true };
+    fundos.forEach((f, idx) => {
+      cdRow.getCell(2 + idx).value = 100 - pctFrutaBuenaPorFundo(f);
+      cdRow.getCell(2 + idx).numFmt = '0.0"%"';
+      cdRow.getCell(2 + idx).alignment = { horizontal: 'center' };
+    });
+    cdRow.eachCell({ includeEmpty: false }, (c) => this.applyThinBorder(c));
+    cdRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFECACA' } };
+    cdRow.font = { bold: true };
     row++;
 
     // Sección CALIDAD
