@@ -80,6 +80,14 @@ export default async function DashboardPage() {
               description="Gestionar variedades, fundos, defectos, etc."
             />
           )}
+          {esAdmin && (
+            <ActionCard
+              href="/admin/exportar"
+              icon="📤"
+              title="Exportar reporte (Admin)"
+              description="Generar Excel ejecutivo con detalle y resúmenes"
+            />
+          )}
         </div>
       </section>
     </div>

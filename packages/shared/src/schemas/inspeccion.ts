@@ -118,6 +118,17 @@ export const UpdateInspeccionInputSchema = z.object({
 });
 export type UpdateInspeccionInput = z.infer<typeof UpdateInspeccionInputSchema>;
 
+// Query del endpoint de exportación a Excel (admin). Rango de fechas obligatorio,
+// fundo y cliente opcionales. El backend limita el rango a 365 días.
+export const ExportInspeccionesQuerySchema = z.object({
+  fechaDesde: z.coerce.date(),
+  fechaHasta: z.coerce.date(),
+  fundoId: z.string().uuid().optional(),
+  clienteId: z.string().uuid().optional(),
+  incluirEliminadas: z.coerce.boolean().optional().default(false),
+});
+export type ExportInspeccionesQuery = z.infer<typeof ExportInspeccionesQuerySchema>;
+
 export const ListInspeccionesQuerySchema = z.object({
   tipo: z.enum(TIPO_INSPECCION_VALUES).optional(),
   fundoId: z.string().uuid().optional(),

@@ -10,6 +10,7 @@ import { DestinosModule } from './destinos/destinos.module';
 import { FundosModule } from './fundos/fundos.module';
 import { HealthModule } from './health/health.module';
 import { InspeccionesModule } from './inspecciones/inspecciones.module';
+import { InspeccionesExportModule } from './inspecciones-export/inspecciones-export.module';
 import { InspeccionesResumenModule } from './inspecciones-resumen/inspecciones-resumen.module';
 import { InspeccionesStatsModule } from './inspecciones-stats/inspecciones-stats.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -41,6 +42,7 @@ import { VariedadesModule } from './variedades/variedades.module';
     InspeccionesModule,
     InspeccionesResumenModule,
     InspeccionesStatsModule,
+    InspeccionesExportModule,
   ],
   providers: [
     // Orden importante: Throttler primero (rebota antes de tocar auth/DB)
