@@ -43,31 +43,52 @@ export interface InspeccionParaEditar {
 }
 
 // Schema del FORM — idéntico al de "nueva", incluye cantidadPorDefecto.
-const FormSchema = z.object({
-  tipo: z.enum([TipoInspeccion.EXPORTACION, TipoInspeccion.DESCARTE, TipoInspeccion.RECEPCION]),
-  fecha: z.string().min(1, 'Fecha requerida'),
-  numeroMuestra: z.coerce.number().int().positive().optional().or(z.literal('').transform(() => undefined)),
+// Defectos: cada celda opcional. Validación: ningún valor > conteoMuestra.
+const cantidadDefectoSchema = z
+  .union([
+    z.literal('').transform(() => undefined),
+    z.coerce.number().int('Debe ser entero').nonnegative('No puede ser negativo'),
+  ])
+  .optional();
 
-  fundoId: z.string().uuid('Seleccioná un fundo'),
-  variedadId: z.string().uuid('Seleccioná una variedad'),
-  tipoEmbalajeId: z.string().uuid().optional().or(z.literal('').transform(() => undefined)),
-  clienteId: z.string().uuid().optional().or(z.literal('').transform(() => undefined)),
-  destinoId: z.string().uuid().optional().or(z.literal('').transform(() => undefined)),
-  categoria: z.enum([Categoria.CAT1, Categoria.CAT2]).optional().or(z.literal('').transform(() => undefined)),
-  plu: z.boolean().optional(),
-  calibre: z.enum([
-    Calibre.C08, Calibre.C10, Calibre.C12, Calibre.C14, Calibre.C16,
-    Calibre.C18, Calibre.C20, Calibre.C22, Calibre.C24, Calibre.C30,
-  ]).optional().or(z.literal('').transform(() => undefined)),
+const FormSchema = z
+  .object({
+    tipo: z.enum([TipoInspeccion.EXPORTACION, TipoInspeccion.DESCARTE, TipoInspeccion.RECEPCION]),
+    fecha: z.string().min(1, 'Fecha requerida'),
+    numeroMuestra: z.coerce.number().int().positive().optional().or(z.literal('').transform(() => undefined)),
 
-  conteoMuestra: z.coerce.number().int().positive('Conteo debe ser mayor a 0'),
+    fundoId: z.string().uuid('Seleccioná un fundo'),
+    variedadId: z.string().uuid('Seleccioná una variedad'),
+    tipoEmbalajeId: z.string().uuid().optional().or(z.literal('').transform(() => undefined)),
+    clienteId: z.string().uuid().optional().or(z.literal('').transform(() => undefined)),
+    destinoId: z.string().uuid().optional().or(z.literal('').transform(() => undefined)),
+    categoria: z.enum([Categoria.CAT1, Categoria.CAT2]).optional().or(z.literal('').transform(() => undefined)),
+    plu: z.boolean().optional(),
+    calibre: z.enum([
+      Calibre.C08, Calibre.C10, Calibre.C12, Calibre.C14, Calibre.C16,
+      Calibre.C18, Calibre.C20, Calibre.C22, Calibre.C24, Calibre.C30,
+    ]).optional().or(z.literal('').transform(() => undefined)),
 
-  calidadEmbalaje: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
-  rotulacion: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
-  paletizaje: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
+    conteoMuestra: z.coerce.number().int().positive('Conteo debe ser mayor a 0'),
 
-  cantidadPorDefecto: z.record(z.string(), z.coerce.number().int().nonnegative().optional()),
-});
+    calidadEmbalaje: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
+    rotulacion: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
+    paletizaje: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
+
+    cantidadPorDefecto: z.record(z.string(), cantidadDefectoSchema),
+  })
+  .superRefine((data, ctx) => {
+    const total = data.conteoMuestra;
+    for (const [tipoDefectoId, cantidad] of Object.entries(data.cantidadPorDefecto ?? {})) {
+      if (cantidad !== undefined && cantidad > total) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['cantidadPorDefecto', tipoDefectoId],
+          message: `Máx. ${total} (conteo total)`,
+        });
+      }
+    }
+  });
 
 type FormValues = z.infer<typeof FormSchema>;
 
@@ -92,6 +113,7 @@ export function EditarInspeccionForm({ catalogos, inspeccion }: Props) {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
@@ -114,6 +136,11 @@ export function EditarInspeccionForm({ catalogos, inspeccion }: Props) {
       cantidadPorDefecto: inspeccion.cantidadPorDefecto,
     } as FormValues,
   });
+
+  const conteoMuestraLive = watch('conteoMuestra');
+  const conteoMax = typeof conteoMuestraLive === 'number' && conteoMuestraLive > 0
+    ? conteoMuestraLive
+    : undefined;
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
@@ -317,7 +344,10 @@ export function EditarInspeccionForm({ catalogos, inspeccion }: Props) {
             label={d.nombre}
             type="number"
             inputMode="numeric"
-            placeholder="0"
+            placeholder="—"
+            min={0}
+            max={conteoMax}
+            error={errors.cantidadPorDefecto?.[d.id]?.message}
             {...register(`cantidadPorDefecto.${d.id}` as const)}
           />
         ))}
@@ -331,7 +361,10 @@ export function EditarInspeccionForm({ catalogos, inspeccion }: Props) {
             label={d.nombre}
             type="number"
             inputMode="numeric"
-            placeholder="0"
+            placeholder="—"
+            min={0}
+            max={conteoMax}
+            error={errors.cantidadPorDefecto?.[d.id]?.message}
             {...register(`cantidadPorDefecto.${d.id}` as const)}
           />
         ))}
