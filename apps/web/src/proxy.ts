@@ -4,15 +4,17 @@
 // Reglas:
 //  - /login y /api/auth/* son públicos
 //  - / redirige según haya cookie de refresh
-//  - Todo lo demás requiere cookie de refresh (la de access dura 15min, no la usamos como señal)
+//  - Si hay refresh pero el access cookie expiró/falta → /api/auth/refresh-and-redirect
+//    para que la sesión se refresque transparente en SSR. Sin esto, el access
+//    expira a los 15 min y deja al usuario en un redirect loop entre /login
+//    y /dashboard.
+//  - Todo lo demás requiere sesión válida (access no expirado).
 import { NextResponse, type NextRequest } from 'next/server';
-import { REFRESH_COOKIE } from './lib/config';
+import { ACCESS_COOKIE, REFRESH_COOKIE } from './lib/config';
+import { isAccessExpired } from './lib/jwt';
 
 const PUBLIC_PATHS = ['/login'];
 
-// Logging estructurado temporal para diagnóstico — ver Railway logs en vivo.
-// Marca cada request con [PROXY] + decisión. Si un request loopea, se va a
-// ver acá inmediatamente. Sacar este logging cuando se resuelva el bug.
 function log(action: string, req: NextRequest, extras: Record<string, unknown> = {}): void {
   const ip =
     req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
@@ -25,10 +27,20 @@ function log(action: string, req: NextRequest, extras: Record<string, unknown> =
   );
 }
 
+function refreshAndRedirectUrl(req: NextRequest, nextPath: string): URL {
+  const url = new URL('/api/auth/refresh-and-redirect', req.url);
+  url.searchParams.set('next', nextPath);
+  return url;
+}
+
 export function proxy(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
   const refreshCookie = req.cookies.get(REFRESH_COOKIE)?.value;
+  const accessCookie = req.cookies.get(ACCESS_COOKIE)?.value;
   const hasRefreshSession = Boolean(refreshCookie);
+  // accessAlive = access cookie present AND not expired. JWT signature NOT
+  // verified here — backend verifies on every protected request.
+  const accessAlive = Boolean(accessCookie) && !isAccessExpired(accessCookie!);
 
   // Permitir assets, BFF de auth, y rutas con extensión.
   if (
@@ -46,30 +58,44 @@ export function proxy(req: NextRequest): NextResponse {
     return NextResponse.redirect(new URL(to, req.url));
   }
 
-  // Login: si ya hay sesión, redirigir al dashboard.
+  // Login: si ya hay sesión válida, redirigir al dashboard.
   if (PUBLIC_PATHS.includes(pathname)) {
-    if (hasRefreshSession) {
-      log('redirect', req, {
-        from: pathname,
-        to: '/dashboard',
-        reason: 'login-already-authed',
-      });
+    if (accessAlive) {
+      log('redirect', req, { from: pathname, to: '/dashboard', reason: 'login-already-authed' });
       return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+    if (hasRefreshSession) {
+      // Refresh cookie pero access expirado: intentar refresh transparente
+      // y volver a /dashboard. Si refresh falla, clear-session manda acá sin
+      // refresh cookie y entonces sí renderizamos el form.
+      log('redirect', req, { from: pathname, to: 'refresh-and-redirect', reason: 'login-access-stale' });
+      return NextResponse.redirect(refreshAndRedirectUrl(req, '/dashboard'));
     }
     log('next', req, { reason: 'public-no-session' });
     return NextResponse.next();
   }
 
-  // Cualquier otra ruta requiere sesión.
-  if (!hasRefreshSession) {
-    const url = new URL('/login', req.url);
-    url.searchParams.set('next', pathname);
-    log('redirect', req, { from: pathname, to: url.pathname + url.search, reason: 'no-session' });
-    return NextResponse.redirect(url);
+  // Rutas protegidas.
+  if (accessAlive) {
+    log('next', req, { authed: true });
+    return NextResponse.next();
   }
 
-  log('next', req, { authed: true });
-  return NextResponse.next();
+  if (hasRefreshSession) {
+    // Access vencido pero refresh OK → refresh transparente.
+    log('redirect', req, {
+      from: pathname,
+      to: 'refresh-and-redirect',
+      reason: 'access-stale',
+    });
+    return NextResponse.redirect(refreshAndRedirectUrl(req, pathname + req.nextUrl.search));
+  }
+
+  // Sin nada → al login.
+  const url = new URL('/login', req.url);
+  url.searchParams.set('next', pathname);
+  log('redirect', req, { from: pathname, to: url.pathname + url.search, reason: 'no-session' });
+  return NextResponse.redirect(url);
 }
 
 export const config = {
