@@ -323,15 +323,14 @@ export class InspeccionesExportService {
     sheet.getRow(row).alignment = { horizontal: 'center' };
     row++;
 
+    // Listar TODOS los defectos de calidad del catálogo, aunque en ninguna
+    // muestra hayan aparecido. El cliente lee la planilla como checklist:
+    // espera ver cada defecto con su valor (0 si no apareció).
     const tiposCalidad = tiposDefecto.filter((t) => t.familia === FamiliaDefecto.CALIDAD);
     for (const tipo of tiposCalidad) {
-      const aparece = inspecciones.some((i) =>
-        i.defectos.some((d) => d.tipoDefectoId === tipo.id),
-      );
-      if (!aparece) continue;
       attrRow(tipo.nombre.toUpperCase(), (i) => {
         const d = i.defectos.find((x) => x.tipoDefectoId === tipo.id);
-        return d ? Number(d.porcentajeCalculado) : '';
+        return d ? Number(d.porcentajeCalculado) : 0;
       });
     }
     attrRow(
@@ -354,15 +353,12 @@ export class InspeccionesExportService {
     sheet.getRow(row).alignment = { horizontal: 'center' };
     row++;
 
+    // Misma lógica para CONDICIÓN: todos los del catálogo, 0 donde no apareció.
     const tiposCondicion = tiposDefecto.filter((t) => t.familia === FamiliaDefecto.CONDICION);
     for (const tipo of tiposCondicion) {
-      const aparece = inspecciones.some((i) =>
-        i.defectos.some((d) => d.tipoDefectoId === tipo.id),
-      );
-      if (!aparece) continue;
       attrRow(tipo.nombre.toUpperCase(), (i) => {
         const d = i.defectos.find((x) => x.tipoDefectoId === tipo.id);
-        return d ? Number(d.porcentajeCalculado) : '';
+        return d ? Number(d.porcentajeCalculado) : 0;
       });
     }
     attrRow(
@@ -516,19 +512,16 @@ export class InspeccionesExportService {
     sheet.getRow(row).alignment = { horizontal: 'center' };
     row++;
 
+    // Listar TODOS los defectos de calidad del catálogo (checklist),
+    // mostrando 0 en los fundos donde no apareció.
     for (const tipo of tiposDefecto.filter((t) => t.familia === FamiliaDefecto.CALIDAD)) {
       const valores = fundos.map((f) => sumarPctPorTipoEnFundo(tipo.id, f));
-      if (valores.every((v) => v === null)) continue;
       const r = sheet.getRow(row);
       r.getCell(1).value = tipo.nombre.toUpperCase();
       r.getCell(1).font = { bold: true };
       valores.forEach((v, idx) => {
-        if (v === null) {
-          r.getCell(2 + idx).value = '-';
-        } else {
-          r.getCell(2 + idx).value = v;
-          r.getCell(2 + idx).numFmt = '0.0"%"';
-        }
+        r.getCell(2 + idx).value = v ?? 0;
+        r.getCell(2 + idx).numFmt = '0.0"%"';
         r.getCell(2 + idx).alignment = { horizontal: 'center' };
       });
       r.eachCell({ includeEmpty: false }, (c) => this.applyThinBorder(c));
@@ -547,19 +540,15 @@ export class InspeccionesExportService {
     sheet.getRow(row).alignment = { horizontal: 'center' };
     row++;
 
+    // Misma lógica para CONDICIÓN.
     for (const tipo of tiposDefecto.filter((t) => t.familia === FamiliaDefecto.CONDICION)) {
       const valores = fundos.map((f) => sumarPctPorTipoEnFundo(tipo.id, f));
-      if (valores.every((v) => v === null)) continue;
       const r = sheet.getRow(row);
       r.getCell(1).value = tipo.nombre.toUpperCase();
       r.getCell(1).font = { bold: true };
       valores.forEach((v, idx) => {
-        if (v === null) {
-          r.getCell(2 + idx).value = '-';
-        } else {
-          r.getCell(2 + idx).value = v;
-          r.getCell(2 + idx).numFmt = '0.0"%"';
-        }
+        r.getCell(2 + idx).value = v ?? 0;
+        r.getCell(2 + idx).numFmt = '0.0"%"';
         r.getCell(2 + idx).alignment = { horizontal: 'center' };
       });
       r.eachCell({ includeEmpty: false }, (c) => this.applyThinBorder(c));
