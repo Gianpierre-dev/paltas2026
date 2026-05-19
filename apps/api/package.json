@@ -16,12 +16,12 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "tsx prisma/seed.ts",
-    "migrate:historic": "tsx scripts/migrate-historic.ts",
-    "migrate:historic:apply": "tsx scripts/migrate-historic.ts --apply"
+    "prisma:seed": "tsx --env-file=.env prisma/seed.ts",
+    "migrate:historic": "tsx --env-file=.env scripts/migrate-historic.ts",
+    "migrate:historic:apply": "tsx --env-file=.env scripts/migrate-historic.ts --apply"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx --env-file=.env prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",

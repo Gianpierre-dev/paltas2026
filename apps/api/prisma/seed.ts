@@ -1,17 +1,15 @@
 /**
  * Seed inicial — Paltas2026
  *
- * Carga:
- *  - 1 usuario Admin (admin@paltas2026.local / Admin2026!)
- *  - 1 usuario Inspector de prueba (inspector@paltas2026.local / Inspector2026!)
- *  - 4 Variedades (Hass, Zutano, Ettinger, Maluma)
- *  - 3 Fundos (Hefei, Mosqueta, Pirona)
- *  - 11 Destinos (los detectados en el Excel histórico)
- *  - Clientes detectados en el Excel histórico
- *  - 5 Tipos de Embalaje (C04G, C5.6U, P10G, C04U, C11.34U)
- *  - 19 Tipos de Defecto (10 CALIDAD + 9 CONDICION)
- *  - 8 Reglas de Calificación (4 CALIDAD + 4 CONDICION)
- *  - 16 entradas de Matriz de Calificación Final (4×4)
+ * MODO ACTUAL: SOLO datos imprescindibles del sistema.
+ *  - 2 usuarios (admin + inspector con credenciales)
+ *  - 8 Reglas de Calificación (configuración crítica del cálculo de notas)
+ *  - 16 entradas de Matriz de Calificación Final (configuración crítica)
+ *
+ * Los catálogos (variedades, fundos, clientes, destinos, embalajes, defectos)
+ * los carga el ADMIN desde la UI según necesidad. Las funciones siguen
+ * definidas más abajo por si en algún momento querés re-poblar el sistema
+ * con datos de prueba: descomentá las llamadas en main().
  *
  * Idempotente: usa upsert. Se puede correr múltiples veces sin duplicar.
  */
@@ -257,16 +255,17 @@ async function seedMatriz() {
 }
 
 async function main() {
-  console.log('[seed] Iniciando...');
+  console.log('[seed] Iniciando (solo configuración crítica: usuarios + reglas + matriz)...');
   await seedUsuarios();
-  await seedVariedades();
-  await seedFundos();
-  await seedDestinos();
-  await seedClientes();
-  await seedTiposEmbalaje();
-  await seedTiposDefecto();
   await seedReglasCalificacion();
   await seedMatriz();
+  // Catálogos desactivados — los carga el admin desde la UI.
+  // await seedVariedades();
+  // await seedFundos();
+  // await seedDestinos();
+  // await seedClientes();
+  // await seedTiposEmbalaje();
+  // await seedTiposDefecto();
   console.log('[seed] Completado.');
 }
 
