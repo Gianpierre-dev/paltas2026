@@ -5,6 +5,7 @@ import { LoginInputSchema, type LoginInput, type UsuarioPublico } from '@paltas2
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { FieldRow } from '@/components/forms/field-row';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -65,40 +66,28 @@ export default function LoginPage() {
           <p className="text-sm text-zinc-600 mt-1">Control de calidad - Campaña 2026</p>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-zinc-700 mb-1">
-              Email
-            </label>
+        <form onSubmit={onSubmit} className="space-y-2" noValidate>
+          <FieldRow label="Email" required error={errors.email?.message}>
             <input
               id="email"
               type="email"
               autoComplete="email"
               autoCapitalize="none"
               inputMode="email"
-              className="w-full h-12 px-4 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition text-base"
+              className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition text-base"
               {...register('email')}
             />
-            {errors.email && (
-              <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-            )}
-          </div>
+          </FieldRow>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-1">
-              Contraseña
-            </label>
+          <FieldRow label="Contraseña" required error={errors.password?.message}>
             <input
               id="password"
               type="password"
               autoComplete="current-password"
-              className="w-full h-12 px-4 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition text-base"
+              className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition text-base"
               {...register('password')}
             />
-            {errors.password && (
-              <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
-            )}
-          </div>
+          </FieldRow>
 
           {serverError && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">

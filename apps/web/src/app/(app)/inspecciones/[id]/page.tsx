@@ -31,7 +31,6 @@ interface InspeccionDetalle {
   notaCondicion: number | null;
   notaFinal: number | null;
   resultadoFinal: ResultadoFinal | null;
-  observaciones: string | null;
   createdAt: string;
   fundo: { nombre: string } | null;
   variedad: { nombre: string } | null;
@@ -152,12 +151,6 @@ export default async function DetalleInspeccionPage({
             </Card>
           )}
         </>
-      )}
-
-      {data.observaciones && (
-        <Card title="Observaciones">
-          <p className="text-sm text-zinc-700 whitespace-pre-wrap">{data.observaciones}</p>
-        </Card>
       )}
 
       {isAdmin && <AdminActions inspeccionId={data.id} />}

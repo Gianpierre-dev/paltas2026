@@ -113,7 +113,6 @@ export class InspeccionesService {
           calidadEmbalaje: input.calidadEmbalaje,
           rotulacion: input.rotulacion,
           paletizaje: input.paletizaje,
-          observaciones: input.observaciones,
           sumatoriaCalidad: new Prisma.Decimal(sumatoriaCalidad.toFixed(3)),
           sumatoriaCondicion: new Prisma.Decimal(sumatoriaCondicion.toFixed(3)),
           notaCalidad,
@@ -304,7 +303,6 @@ export class InspeccionesService {
     if (input.calidadEmbalaje !== undefined) data.calidadEmbalaje = input.calidadEmbalaje;
     if (input.rotulacion !== undefined) data.rotulacion = input.rotulacion;
     if (input.paletizaje !== undefined) data.paletizaje = input.paletizaje;
-    if (input.observaciones !== undefined) data.observaciones = input.observaciones;
 
     if (recalcData) {
       data.sumatoriaCalidad = recalcData.sumatoriaCalidad;

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
+import { FieldRow } from '@/components/forms/field-row';
 
 interface FiltrosGraficosProps {
   fechaDesde: string;
@@ -26,9 +27,8 @@ export function FiltrosGraficos({ fechaDesde, fechaHasta }: FiltrosGraficosProps
   };
 
   return (
-    <div className="flex flex-col sm:flex-row gap-2">
-      <label className="flex-1">
-        <span className="block text-xs text-zinc-500 mb-1">Desde</span>
+    <div className="space-y-1">
+      <FieldRow label="Desde">
         <input
           type="date"
           value={desdeLocal}
@@ -39,12 +39,11 @@ export function FiltrosGraficos({ fechaDesde, fechaHasta }: FiltrosGraficosProps
             aplicar(v, hastaLocal);
           }}
           disabled={pending}
-          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
+          className="w-full h-10 rounded-md border border-zinc-300 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
         />
-      </label>
+      </FieldRow>
 
-      <label className="flex-1">
-        <span className="block text-xs text-zinc-500 mb-1">Hasta</span>
+      <FieldRow label="Hasta">
         <input
           type="date"
           value={hastaLocal}
@@ -55,9 +54,9 @@ export function FiltrosGraficos({ fechaDesde, fechaHasta }: FiltrosGraficosProps
             aplicar(desdeLocal, v);
           }}
           disabled={pending}
-          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
+          className="w-full h-10 rounded-md border border-zinc-300 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
         />
-      </label>
+      </FieldRow>
     </div>
   );
 }

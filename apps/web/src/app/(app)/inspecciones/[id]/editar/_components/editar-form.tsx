@@ -19,6 +19,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
 import type { CatalogosForForm } from '@/lib/catalogos';
+import { FieldRow } from '@/components/forms/field-row';
 
 // Shape esperado: valores de la inspección ya normalizados para el form.
 export interface InspeccionParaEditar {
@@ -38,7 +39,6 @@ export interface InspeccionParaEditar {
   calidadEmbalaje: TEvaluacionFisica | null;
   rotulacion: TEvaluacionFisica | null;
   paletizaje: TEvaluacionFisica | null;
-  observaciones: string | null;
   cantidadPorDefecto: Record<string, number>;
 }
 
@@ -65,8 +65,6 @@ const FormSchema = z.object({
   calidadEmbalaje: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
   rotulacion: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
   paletizaje: z.enum([EvaluacionFisica.BUENO, EvaluacionFisica.ACEPTABLE, EvaluacionFisica.MALO]).optional().or(z.literal('').transform(() => undefined)),
-
-  observaciones: z.string().max(2000).optional(),
 
   cantidadPorDefecto: z.record(z.string(), z.coerce.number().int().nonnegative().optional()),
 });
@@ -113,7 +111,6 @@ export function EditarInspeccionForm({ catalogos, inspeccion }: Props) {
       calidadEmbalaje: inspeccion.calidadEmbalaje ?? '',
       rotulacion: inspeccion.rotulacion ?? '',
       paletizaje: inspeccion.paletizaje ?? '',
-      observaciones: inspeccion.observaciones ?? '',
       cantidadPorDefecto: inspeccion.cantidadPorDefecto,
     } as FormValues,
   });
@@ -146,7 +143,6 @@ export function EditarInspeccionForm({ catalogos, inspeccion }: Props) {
       calidadEmbalaje: values.calidadEmbalaje ?? null,
       rotulacion: values.rotulacion ?? null,
       paletizaje: values.paletizaje ?? null,
-      observaciones: values.observaciones && values.observaciones.length > 0 ? values.observaciones : null,
       defectos,
     };
 
@@ -262,12 +258,6 @@ export function EditarInspeccionForm({ catalogos, inspeccion }: Props) {
         />
 
         <FieldCheckbox label="PLU" {...register('plu')} />
-
-        <FieldTextarea
-          label="Nota / Observaciones"
-          {...register('observaciones')}
-          error={errors.observaciones?.message}
-        />
       </Section>
 
       <Section title="2. Embalaje">
@@ -412,14 +402,12 @@ const FieldInput = function FieldInput({
   ...rest
 }: FieldBaseProps & React.InputHTMLAttributes<HTMLInputElement> & { name?: string }) {
   return (
-    <div>
-      <label className="block text-sm text-zinc-700 mb-1">{label}</label>
+    <FieldRow label={label} error={error}>
       <input
-        className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
+        className="w-full h-10 px-3 rounded-md border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
         {...rest}
       />
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-    </div>
+    </FieldRow>
   );
 };
 
@@ -432,10 +420,9 @@ const FieldSelect = function FieldSelect({
   options: { value: string; label: string }[];
 } & React.SelectHTMLAttributes<HTMLSelectElement> & { name?: string }) {
   return (
-    <div>
-      <label className="block text-sm text-zinc-700 mb-1">{label}</label>
+    <FieldRow label={label} error={error}>
       <select
-        className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base bg-white"
+        className="w-full h-10 px-3 rounded-md border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base bg-white"
         {...rest}
       >
         {options.map((opt) => (
@@ -444,27 +431,7 @@ const FieldSelect = function FieldSelect({
           </option>
         ))}
       </select>
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-    </div>
-  );
-};
-
-const FieldTextarea = function FieldTextarea({
-  label,
-  error,
-  ...rest
-}: FieldBaseProps &
-  React.TextareaHTMLAttributes<HTMLTextAreaElement> & { name?: string }) {
-  return (
-    <div>
-      <label className="block text-sm text-zinc-700 mb-1">{label}</label>
-      <textarea
-        rows={2}
-        className="w-full px-3 py-2 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
-        {...rest}
-      />
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-    </div>
+    </FieldRow>
   );
 };
 
@@ -473,13 +440,12 @@ const FieldCheckbox = function FieldCheckbox({
   ...rest
 }: { label: string } & React.InputHTMLAttributes<HTMLInputElement> & { name?: string }) {
   return (
-    <label className="flex items-center gap-3 py-1">
+    <FieldRow label={label}>
       <input
         type="checkbox"
-        className="h-5 w-5 rounded border-zinc-300 text-brand-500 focus:ring-brand-500/20"
+        className="h-5 w-5 rounded border-zinc-300 text-brand-500 focus:ring-brand-500/20 mt-2"
         {...rest}
       />
-      <span className="text-sm text-zinc-700">{label}</span>
-    </label>
+    </FieldRow>
   );
 };

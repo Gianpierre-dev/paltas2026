@@ -59,7 +59,6 @@ $payload = @{
     calidadEmbalaje = 'BUENO'
     rotulacion = 'BUENO'
     paletizaje = 'BUENO'
-    observaciones = 'Inspeccion creada via smoke E2E'
     defectos = @(
         @{ tipoDefectoId = $lenticelaId; cantidadFrutos = 2 },
         @{ tipoDefectoId = $danoMecId; cantidadFrutos = 1 }

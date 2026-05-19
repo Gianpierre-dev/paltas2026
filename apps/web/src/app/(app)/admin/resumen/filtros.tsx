@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
+import { FieldRow } from '@/components/forms/field-row';
 
 interface FundoOption {
   id: string;
@@ -32,9 +33,8 @@ export function FiltrosResumen({ fecha, fundoId, fundos }: FiltrosResumenProps) 
   };
 
   return (
-    <div className="flex flex-col sm:flex-row gap-2">
-      <label className="flex-1">
-        <span className="block text-xs text-zinc-500 mb-1">Fecha</span>
+    <div className="space-y-1">
+      <FieldRow label="Fecha">
         <input
           type="date"
           value={fechaLocal}
@@ -44,12 +44,11 @@ export function FiltrosResumen({ fecha, fundoId, fundos }: FiltrosResumenProps) 
             aplicar(v, fundoLocal);
           }}
           disabled={pending}
-          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
+          className="w-full h-10 rounded-md border border-zinc-300 px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
         />
-      </label>
+      </FieldRow>
 
-      <label className="flex-1">
-        <span className="block text-xs text-zinc-500 mb-1">Fundo</span>
+      <FieldRow label="Fundo">
         <select
           value={fundoLocal}
           onChange={(e) => {
@@ -58,7 +57,7 @@ export function FiltrosResumen({ fecha, fundoId, fundos }: FiltrosResumenProps) 
             aplicar(fechaLocal, v);
           }}
           disabled={pending}
-          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
+          className="w-full h-10 rounded-md border border-zinc-300 px-3 text-sm bg-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
         >
           <option value="">Todos los fundos</option>
           {fundos.map((f) => (
@@ -67,7 +66,7 @@ export function FiltrosResumen({ fecha, fundoId, fundos }: FiltrosResumenProps) 
             </option>
           ))}
         </select>
-      </label>
+      </FieldRow>
     </div>
   );
 }

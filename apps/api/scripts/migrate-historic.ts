@@ -634,7 +634,6 @@ async function main() {
               notaCondicion: v.notaCondicion,
               notaFinal: v.notaFinal,
               resultadoFinal: v.resultadoFinal,
-              observaciones: null,
               defectos: {
                 create: v.defectos.map((d) => ({
                   tipoDefectoId: d.tipoDefectoId,

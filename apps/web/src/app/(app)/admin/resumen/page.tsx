@@ -41,7 +41,6 @@ interface InspeccionResumenItem {
   notaCondicion: number | null;
   notaFinal: number | null;
   resultadoFinal: ResultadoFinal | null;
-  observaciones: string | null;
   variedad: { id: string; nombre: string } | null;
   cliente: { id: string; nombre: string } | null;
   destino: { id: string; nombre: string } | null;

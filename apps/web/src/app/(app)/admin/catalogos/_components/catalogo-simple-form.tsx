@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
+import { FieldRow } from '@/components/forms/field-row';
 
 // Schema local del form — sirve para los 4 catálogos simples (sólo nombre).
 // El backend valida con su propio schema; acá garantizamos UX inmediata.
@@ -62,18 +63,14 @@ export function CatalogoSimpleForm({ recurso, initialValues }: Props) {
   });
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4" noValidate>
-      <div>
-        <label className="block text-sm text-zinc-700 mb-1">Nombre *</label>
+    <form onSubmit={onSubmit} className="space-y-2" noValidate>
+      <FieldRow label="Nombre" required error={errors.nombre?.message}>
         <input
           {...register('nombre')}
           autoFocus
-          className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
+          className="w-full h-10 px-3 rounded-md border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
         />
-        {errors.nombre && (
-          <p className="mt-1 text-xs text-red-600">{errors.nombre.message}</p>
-        )}
-      </div>
+      </FieldRow>
 
       {serverError && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">

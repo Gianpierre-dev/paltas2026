@@ -115,10 +115,10 @@ Write-Host ("ID:                 " + $created.id)
 Write-Host ("sumCal=" + $created.sumatoriaCalidad + " notaCal=" + $created.notaCalidad + " resultado=" + $created.resultadoFinal)
 
 Write-Host ""
-Write-Host "=== B2. PATCH cambiando solo observaciones (admin) ==="
-$body = @{ observaciones = 'editado via smoke test' } | ConvertTo-Json
+Write-Host "=== B2. PATCH cambiando solo calidadEmbalaje (admin) ==="
+$body = @{ calidadEmbalaje = 'ACEPTABLE' } | ConvertTo-Json
 $updated = Invoke-RestMethod -Uri "http://localhost:3001/api/inspecciones/$($created.id)" -Method PATCH -Body $body -ContentType 'application/json' -Headers $adminAuth
-Write-Host ("Observaciones: " + $updated.observaciones)
+Write-Host ("calidadEmbalaje: " + $updated.calidadEmbalaje)
 Write-Host ("Notas conservadas: notaCal=" + $updated.notaCalidad + " (esperado igual que B1)")
 
 Write-Host ""
@@ -130,7 +130,7 @@ Write-Host ("sumCal=" + $updated.sumatoriaCalidad + " notaCal=" + $updated.notaC
 Write-Host ""
 Write-Host "=== B4. PATCH como INSPECTOR debe 403 ==="
 try {
-    Invoke-RestMethod -Uri "http://localhost:3001/api/inspecciones/$($created.id)" -Method PATCH -Body '{"observaciones":"x"}' -ContentType 'application/json' -Headers $inspectorAuth -ErrorAction Stop
+    Invoke-RestMethod -Uri "http://localhost:3001/api/inspecciones/$($created.id)" -Method PATCH -Body '{"calidadEmbalaje":"BUENO"}' -ContentType 'application/json' -Headers $inspectorAuth -ErrorAction Stop
 } catch {
     Write-Host ("Status: " + $_.Exception.Response.StatusCode.value__) -NoNewline
     Write-Host " (esperado 403)"

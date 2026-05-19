@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
+import { FieldRow } from '@/components/forms/field-row';
 
 const FormSchema = z.object({
   nombre: z.string().trim().min(1, 'Nombre requerido').max(80),
@@ -68,47 +69,33 @@ export function TipoDefectoForm({ initialValues }: Props) {
   });
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4" noValidate>
-      <div>
-        <label className="block text-sm text-zinc-700 mb-1">Nombre *</label>
+    <form onSubmit={onSubmit} className="space-y-2" noValidate>
+      <FieldRow label="Nombre *" error={errors.nombre?.message}>
         <input
           {...register('nombre')}
           autoFocus
-          className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
+          className="w-full h-10 px-3 rounded-md border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
         />
-        {errors.nombre && (
-          <p className="mt-1 text-xs text-red-600">{errors.nombre.message}</p>
-        )}
-      </div>
+      </FieldRow>
 
-      <div>
-        <label className="block text-sm text-zinc-700 mb-1">Familia *</label>
+      <FieldRow label="Familia *" error={errors.familia?.message}>
         <select
           {...register('familia')}
-          className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base bg-white"
+          className="w-full h-10 px-3 rounded-md border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base bg-white"
         >
           <option value={FamiliaDefecto.CALIDAD}>CALIDAD</option>
           <option value={FamiliaDefecto.CONDICION}>CONDICIÓN</option>
         </select>
-        {errors.familia && (
-          <p className="mt-1 text-xs text-red-600">{errors.familia.message}</p>
-        )}
-      </div>
+      </FieldRow>
 
-      <div>
-        <label className="block text-sm text-zinc-700 mb-1">
-          Orden (de menor a mayor en la planilla)
-        </label>
+      <FieldRow label="Orden" error={errors.orden?.message}>
         <input
           type="number"
           inputMode="numeric"
           {...register('orden')}
-          className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
+          className="w-full h-10 px-3 rounded-md border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
         />
-        {errors.orden && (
-          <p className="mt-1 text-xs text-red-600">{errors.orden.message}</p>
-        )}
-      </div>
+      </FieldRow>
 
       {serverError && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">

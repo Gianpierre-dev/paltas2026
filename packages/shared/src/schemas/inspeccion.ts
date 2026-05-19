@@ -70,8 +70,6 @@ export const CreateInspeccionInputSchema = z.object({
   rotulacion: z.enum(EVALUACION_FISICA_VALUES).optional(),
   paletizaje: z.enum(EVALUACION_FISICA_VALUES).optional(),
 
-  observaciones: z.string().max(2000).optional(),
-
   defectos: z.array(DefectoInputSchema).default([]),
 });
 export type CreateInspeccionInput = z.infer<typeof CreateInspeccionInputSchema>;
@@ -98,8 +96,6 @@ export const UpdateInspeccionInputSchema = z.object({
   calidadEmbalaje: z.enum(EVALUACION_FISICA_VALUES).optional().nullable(),
   rotulacion: z.enum(EVALUACION_FISICA_VALUES).optional().nullable(),
   paletizaje: z.enum(EVALUACION_FISICA_VALUES).optional().nullable(),
-
-  observaciones: z.string().max(2000).optional().nullable(),
 
   // Si llega, reemplaza la lista completa de defectos.
   defectos: z.array(DefectoInputSchema).optional(),

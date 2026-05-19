@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
+import { FieldRow } from '@/components/forms/field-row';
 
 const FormSchema = z.object({
   codigo: z.string().trim().min(1, 'Código requerido').max(20),
@@ -81,42 +82,39 @@ export function TipoEmbalajeForm({ initialValues }: Props) {
   });
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4" noValidate>
-      <Field
-        label="Código *"
-        error={errors.codigo?.message}
-        placeholder="Ej: 4KG-EXP"
-      >
+    <form onSubmit={onSubmit} className="space-y-2" noValidate>
+      <FieldRow label="Código *" error={errors.codigo?.message}>
         <input
           {...register('codigo')}
           autoFocus
-          className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base uppercase"
+          placeholder="Ej: 4KG-EXP"
+          className="w-full h-10 px-3 rounded-md border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base uppercase"
         />
-      </Field>
+      </FieldRow>
 
-      <Field label="Descripción *" error={errors.descripcion?.message}>
+      <FieldRow label="Descripción *" error={errors.descripcion?.message}>
         <input
           {...register('descripcion')}
-          className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
+          className="w-full h-10 px-3 rounded-md border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
         />
-      </Field>
+      </FieldRow>
 
-      <Field label="Peso (kg) *" error={errors.pesoKg?.message}>
+      <FieldRow label="Peso (kg) *" error={errors.pesoKg?.message}>
         <input
           type="number"
           step="0.01"
           inputMode="decimal"
           {...register('pesoKg')}
-          className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
+          className="w-full h-10 px-3 rounded-md border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
         />
-      </Field>
+      </FieldRow>
 
-      <Field label="Marca *" error={errors.marca?.message}>
+      <FieldRow label="Marca *" error={errors.marca?.message}>
         <input
           {...register('marca')}
-          className="w-full h-11 px-3 rounded-lg border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
+          className="w-full h-10 px-3 rounded-md border border-zinc-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-base"
         />
-      </Field>
+      </FieldRow>
 
       {serverError && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -143,22 +141,3 @@ export function TipoEmbalajeForm({ initialValues }: Props) {
   );
 }
 
-function Field({
-  label,
-  error,
-  placeholder: _placeholder,
-  children,
-}: {
-  label: string;
-  error?: string;
-  placeholder?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="block text-sm text-zinc-700 mb-1">{label}</label>
-      {children}
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-    </div>
-  );
-}

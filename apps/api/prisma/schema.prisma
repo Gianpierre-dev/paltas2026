@@ -282,8 +282,6 @@ model Inspeccion {
   notaFinal          Int?            @map("nota_final")
   resultadoFinal     ResultadoFinal? @map("resultado_final")
 
-  observaciones String? // Campo "NOTA" del PDF — texto libre
-
   // Soft delete: las inspecciones NO se borran físicamente.
   // remove() setea deletedAt = now(). Trazabilidad agro-exportadora obliga histórico.
   // Admin puede restaurar con endpoint /restore mientras la fila siga viva.

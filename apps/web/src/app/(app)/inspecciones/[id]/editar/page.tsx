@@ -28,7 +28,6 @@ interface InspeccionRaw {
   calidadEmbalaje: EvaluacionFisica | null;
   rotulacion: EvaluacionFisica | null;
   paletizaje: EvaluacionFisica | null;
-  observaciones: string | null;
   defectos: Array<{
     tipoDefectoId: string;
     cantidadFrutos: number;
@@ -93,7 +92,6 @@ export default async function EditarInspeccionPage({
     calidadEmbalaje: raw.calidadEmbalaje,
     rotulacion: raw.rotulacion,
     paletizaje: raw.paletizaje,
-    observaciones: raw.observaciones,
     cantidadPorDefecto,
   };
 
