@@ -94,6 +94,10 @@ const today = () => new Date().toISOString().substring(0, 10);
 export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm }) {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+  // Modo lote: contador de muestras grabadas en esta sesión.
+  // Cuando > 0, el form quedó precargado con los campos del encabezado
+  // y aparece el banner con la opción "Terminar lote".
+  const [loteCount, setLoteCount] = useState(0);
 
   const defectosCalidad = useMemo(
     () => catalogos.tiposDefecto.filter((d) => d.familia === FamiliaDefecto.CALIDAD),
@@ -108,6 +112,7 @@ export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm
     register,
     handleSubmit,
     watch,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
@@ -174,12 +179,46 @@ export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm
     };
 
     try {
-      const created = await api<{ id: string }>('/inspecciones', {
+      await api<{ id: string }>('/inspecciones', {
         method: 'POST',
         body: payload,
       });
-      router.push(`/inspecciones/${created.id}`);
+
+      // Modo lote: en vez de ir al detalle, reseteamos el form preservando
+      // el encabezado para que el inspector cargue otra muestra rápido.
+      const nuevoCount = loteCount + 1;
+      setLoteCount(nuevoCount);
+      const proximoNumero = (Number(values.numeroMuestra) || nuevoCount) + 1;
+
+      reset({
+        // Preservar: datos del lote.
+        tipo: values.tipo,
+        fecha: values.fecha,
+        fundoId: values.fundoId,
+        variedadId: values.variedadId,
+        tipoEmbalajeId: values.tipoEmbalajeId,
+        clienteId: values.clienteId,
+        destinoId: values.destinoId,
+        categoria: values.categoria,
+        plu: values.plu,
+        // Auto-incrementar: el próximo N° de muestra.
+        numeroMuestra: proximoNumero,
+        // Reset: lo que cambia entre muestras.
+        calibre: undefined,
+        conteoMuestra: undefined,
+        frutosBuenos: undefined,
+        calidadEmbalaje: undefined,
+        rotulacion: undefined,
+        paletizaje: undefined,
+        cantidadPorDefecto: {},
+      });
+
+      // Refrescar caché de Server Components (el listado, dashboard, etc.).
       router.refresh();
+      // Volver arriba para que el inspector vea el banner y empiece la carga.
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setServerError(err.message);
@@ -189,9 +228,33 @@ export function NuevaInspeccionForm({ catalogos }: { catalogos: CatalogosForForm
     }
   });
 
+  const terminarLote = () => {
+    router.push('/inspecciones');
+  };
+
   return (
     <form onSubmit={onSubmit} className="px-4 py-4 pb-32 space-y-4" noValidate>
       <h2 className="text-xl font-semibold text-zinc-900">Nueva inspección</h2>
+
+      {loteCount > 0 && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between gap-3">
+          <div className="text-sm min-w-0">
+            <p className="font-semibold text-green-800 truncate">
+              ✓ Muestra {loteCount} guardada
+            </p>
+            <p className="text-xs text-green-700 mt-0.5">
+              Cargando lote · ya van {loteCount} en esta sesión
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={terminarLote}
+            className="shrink-0 text-xs font-medium px-3 py-2 rounded-md bg-white border border-green-300 text-green-800 hover:bg-green-100 active:bg-green-200 transition"
+          >
+            Terminar lote
+          </button>
+        </div>
+      )}
 
       {/* SECCION 1: ENCABEZADO */}
       <Section title="1. Encabezado" defaultOpen>
